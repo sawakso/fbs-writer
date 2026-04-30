@@ -235,24 +235,125 @@ node scripts/deliver-export.mjs <导出文件路径>
 
 | 格式 | 文件名 | 下载 |
 |------|--------|------|
-| 📘 Word (DOCX) | 01-先认识南极.docx | [点击下载](http://175.178.72.8/downloads/01-先认识南极.docx) |
+| 📘 Word (DOCX) | 01-先认识南极.docx | [点击下载](https://lrz.u3w.com/downloads/01-先认识南极.docx) |
 
-**直接下载：** http://175.178.72.8/downloads/01-先认识南极.docx
+**直接下载：** https://lrz.u3w.com/downloads/01-先认识南极.docx
 ```
 
-**注意**：如果服务器没有 `/www/wwwroot/downloads/` 目录权限，脚本会输出警告但仍显示源文件路径，用户可通过服务器文件管理器手动复制。
+**注意**：
+- 如果服务器没有下载目录权限，脚本会输出警告但仍显示源文件路径。
+- Nginx 已配置 `.html` 和 `.pdf` 文件强制下载（Content-Disposition: attachment），点击链接直接弹出下载对话框，不会在浏览器中预览。
+
+## 🔧 新服务器部署
+
+> 这是给**任何 Linux 服务器**的通用部署指南，不依赖特定面板或目录结构。
+
+### 前置要求
+
+- Node.js 18+
+- npm
+- （可选）Nginx / Apache / Caddy 用于对外提供下载
+
+### 安装步骤
+
+#### 1. 安装 Node 依赖
+
+```bash
+cd 技能目录
+
+# 核心功能（无需额外依赖）
+npm install markdown-it
+
+# 导出功能（按需安装）
+npm install html-to-docx        # DOCX 导出
+npm install puppeteer            # PDF 导出
+```
+
+> PDF 导出需要安装 Chromium（约 300MB），首次运行会自动下载：
+> ```bash
+> npx puppeteer browsers install chrome
+> ```
+
+#### 2. 运行环境设置向导
+
+```bash
+node scripts/setup-env.mjs
+```
+
+向导会询问以下信息（全部可留空跳过）：
+
+| 信息 | 说明 | 示例 |
+|------|------|------|
+| 域名 | 你的网站域名 | `example.com` |
+| 协议 | `http` 或 `https` | `https` |
+| 下载目录路径 | 文件实际存放在服务器哪里 | `/var/www/downloads` |
+| 网站根目录 | Web 服务器的文档根目录（可选） | `/var/www/html` |
+| Nginx 配置目录 | 用于自动写入下载头配置（可选） | `/etc/nginx/conf.d` |
+
+**你只需要提供服务可用的下载目录**，其他都可选。不配置域名也能用，交付时手动指定 URL 即可。
+
+#### 3. 配置 Web 服务器（可选，用于提供下载）
+
+如果填写了 Nginx 配置目录，向导会自动写入。否则需要手动将以下内容加入 Nginx 配置：
+
+```nginx
+# 将下载文件强制以附件形式下载，而非浏览器预览
+location ~ ^/downloads/(.+)\.(html|pdf)$ {
+    add_header Content-Disposition 'attachment; filename="$1.$2"';
+}
+```
+
+配置后重载：
+```bash
+nginx -t && nginx -s reload
+```
+
+> Apache、Caddy 等其他 Web 服务器同理，核心就是让 `/downloads/*.html` 和 `/downloads/*.pdf` 带上 `Content-Disposition: attachment` 头。
+
+### 环境配置 `.fbs-env.json`
+
+由 `setup-env.mjs` 生成，位于技能根目录：
+
+```json
+{
+  "$schema": "fbs-env-v1",
+  "domain": "example.com",
+  "scheme": "https",
+  "downloadBaseUrl": "https://example.com/downloads",
+  "downloadServerPath": "/var/www/downloads",
+  "webRoot": "/var/www/html",
+  "nginxExtDir": "/etc/nginx/conf.d"
+}
+```
+
+**所有字段都可选。** 只设置 `downloadServerPath` 也能工作，文件会存到本地，交付时输出路径。
+
+优先级：**环境变量 > `.fbs-env.json` > 代码内置默认值**
+
+### 常用命令速查
+
+```bash
+# 查看当前配置
+node scripts/setup-env.mjs --status
+
+# 仅生成 Nginx 配置片段
+node scripts/setup-env.mjs --nginx
+
+# 重新配置
+node scripts/setup-env.mjs
+
+# 交付文件（自动读配置）
+node scripts/deliver-export.mjs <文件路径>
+
+# 交付文件（临时指定 URL）
+node scripts/deliver-export.mjs <文件路径> http://你的域名/downloads
+```
 
 ### Linux 服务器注意事项
 
-在 Linux 服务器环境下执行脚本时：
-
-1. **Node.js 环境**：确保已安装 Node.js 18+
+1. **Node.js**：确保已安装 Node.js 18+
 2. **工作目录**：使用绝对路径指定 `--book-root`
-3. **依赖安装**：如需导出功能，执行：
-   ```bash
-   npm install html-to-docx docx puppeteer
-   ```
-4. **权限**：确保脚本有执行权限
+3. **权限**：确保脚本有执行权限
    ```bash
    chmod +x scripts/*.mjs
    ```

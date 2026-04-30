@@ -20,7 +20,7 @@
     "html-to-docx": "^1.8.0",
     "markdown-it": "^14.0.0",
     "markdown-it-footnote": "^4.0.0",
-    "puppeteer": "^22.0.0"
+    "puppeteer": "^24.42.0"
   },
   "scripts": {
     "build": "node assets/build.mjs",

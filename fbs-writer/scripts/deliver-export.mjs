@@ -22,9 +22,19 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 可配置的下载目录（服务器上可访问的路径）
-const DOWNLOAD_SERVER_PATH = '/www/wwwroot/downloads';
-const DOWNLOAD_BASE_URL = process.env.DOWNLOAD_BASE_URL || 'http://175.178.72.8/downloads';
+// 加载环境配置（优先级: 环境变量 > .fbs-env.json > 内置默认）
+function loadEnvConfig() {
+  const envPath = path.join(__dirname, '..', '.fbs-env.json');
+  try {
+    if (fs.existsSync(envPath)) {
+      return JSON.parse(fs.readFileSync(envPath, 'utf8'));
+    }
+  } catch { /* 忽略 */ }
+  return {};
+}
+const envConfig = loadEnvConfig();
+const DOWNLOAD_SERVER_PATH = process.env.DOWNLOAD_SERVER_PATH || envConfig.downloadServerPath || '/www/wwwroot/downloads';
+const DOWNLOAD_BASE_URL = process.env.DOWNLOAD_BASE_URL || envConfig.downloadBaseUrl || 'https://lrz.u3w.com/downloads';
 
 function getFileName(filePath) {
   return path.basename(filePath);
@@ -80,15 +90,17 @@ function deliverFile(sourcePath, baseUrl = DOWNLOAD_BASE_URL) {
   const downloadUrl = `${baseUrl}/${encodeURIComponent(fileName)}`;
 
   // 输出下载链接（Markdown 格式）
-  const output = `
-## 📥 文件已生成
-
-| 格式 | 文件名 | 下载 |
-|------|--------|------|
-| ${fileType} | ${fileName} | [点击下载](${downloadUrl}) |
-
-**直接下载链接：** ${downloadUrl}
-`;
+  const output = [
+    '',
+    '## 📥 文件已生成',
+    '',
+    '| 格式 | 文件名 | 下载 |',
+    '|------|--------|------|',
+    `| ${fileType} | ${fileName} | [点击下载](${downloadUrl}) |`,
+    '',
+    `**直接下载链接：** ${downloadUrl}`,
+    '',
+  ].join('\n');
 
   return {
     success: true,
@@ -104,19 +116,7 @@ if (process.argv[1] && process.argv[1].endsWith('deliver-export.mjs')) {
   const args = process.argv.slice(2);
 
   if (args.length < 1) {
-    console.log(`
-OpenClaw 导出交付工具
-
-用法:
-  node deliver-export.mjs <文件路径> [下载URL]
-
-示例:
-  node deliver-export.mjs chapters/01-intro.docx
-  node deliver-export.mjs output.pdf http://your-server.com/downloads/
-
-环境变量:
-  DOWNLOAD_BASE_URL - 默认下载URL前缀
-    `);
+    console.log(`\nOpenClaw 导出交付工具\n\n用法:\n  node deliver-export.mjs <文件路径> [下载URL]\n\n示例:\n  node deliver-export.mjs chapters/01-intro.docx\n  node deliver-export.mjs output.pdf http://your-server.com/downloads/\n\n环境变量:\n  DOWNLOAD_BASE_URL     - 下载 URL 前缀\n  DOWNLOAD_SERVER_PATH  - 本地下载目录路径\n\n配置文件:\n  优先读取技能根目录下的 .fbs-env.json（由 setup-env.mjs 生成）\n`);
     process.exit(0);
   }
 

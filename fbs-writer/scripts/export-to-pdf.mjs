@@ -47,7 +47,7 @@ export async function markdownToPdf(markdownContent, options = {}) {
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
     // 等待字体加载
-    await page.waitForTimeout(1000);
+    await new Promise(r => setTimeout(r, 1000));
 
     pdfBuffer = await page.pdf({
       format: 'A4',
