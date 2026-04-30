@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-04-30T05:37:32.455Z",
+  "generatedAt": "2026-04-30T06:56:50.564Z",
   "skillRoot": "FBS-BookWriter",
   "scripts": [
     "adjacent-chapter-similarity.mjs",
@@ -62,6 +62,7 @@
     "command-approval-policy.mjs",
     "consistency-audit.mjs",
     "content-safety-precheck.mjs",
+    "deliver-export.mjs",
     "delivery-chain.mjs",
     "emit-upgrade-summary.mjs",
     "encoding-governance.mjs",
@@ -272,5 +273,5 @@
     "writing-contract-gate.mjs",
     "xl-project-init.mjs"
   ],
-  "count": 268
+  "count": 269
 }

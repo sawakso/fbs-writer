@@ -19,6 +19,7 @@ export function runOpenClawPack() {
       'scripts/lib/openclaw-host-bridge.mjs',
       'scripts/export-to-docx.mjs',
       'scripts/export-to-pdf.mjs',
+      'scripts/deliver-export.mjs',
     ],
   });
 }

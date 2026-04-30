@@ -216,6 +216,32 @@ node scripts/lib/openclaw-host-bridge.mjs --export-caps
 npm install html-to-docx docx puppeteer
 ```
 
+**自动交付与下载链接（重要）：**
+
+导出文件后，**必须**执行交付脚本，自动复制文件到网站可访问目录并输出下载链接：
+
+```bash
+# 导出后执行交付脚本
+node scripts/deliver-export.mjs <导出文件路径>
+```
+
+交付脚本会自动：
+1. 将文件复制到 `/www/wwwroot/downloads/` 目录
+2. 输出 Markdown 格式的下载链接表格
+
+**交付输出示例：**
+```
+## 📥 第一章已生成
+
+| 格式 | 文件名 | 下载 |
+|------|--------|------|
+| 📘 Word (DOCX) | 01-先认识南极.docx | [点击下载](http://175.178.72.8/downloads/01-先认识南极.docx) |
+
+**直接下载：** http://175.178.72.8/downloads/01-先认识南极.docx
+```
+
+**注意**：如果服务器没有 `/www/wwwroot/downloads/` 目录权限，脚本会输出警告但仍显示源文件路径，用户可通过服务器文件管理器手动复制。
+
 ### Linux 服务器注意事项
 
 在 Linux 服务器环境下执行脚本时：
