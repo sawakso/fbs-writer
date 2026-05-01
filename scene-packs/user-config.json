@@ -1,0 +1,17 @@
+{
+  "_version": "2.0",
+  "_comment": "用户个人配置（自动生成，勿手动编辑 books 数组）。此文件不含密钥，但含本机路径信息，已加入 .gitignore。",
+  "wecom_userid": "",
+  "wecom_corp_id": "",
+  "books": [
+    {
+      "bookRoot": "/root/.openclaw/workspace/test-book",
+      "title": "test-book",
+      "docUrl": null,
+      "docId": null,
+      "genre": "general",
+      "createdAt": "2026-04-30T08:29:30.518Z",
+      "updatedAt": "2026-04-30T08:29:30.518Z"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "_version": "1.0",
+  "_comment": "本地乐包账本（自动生成）。乐包来自完书、完章、质检通过等行为，用于解锁付费场景包体裁。",
+  "balance": 105,
+  "total_earned": 105,
+  "total_spent": 0,
+  "createdAt": "2026-04-30T08:29:30.518Z",
+  "updatedAt": "2026-04-30T08:29:30.519Z",
+  "first_install_done": true,
+  "last_daily_login": "2026-04-30"
+}
