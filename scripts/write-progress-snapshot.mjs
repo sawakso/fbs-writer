@@ -2,6 +2,9 @@
 /**
  * P2：将当前书稿进度落盘为 `.fbs/progress-snapshot.md`，便于对照
  * `references/01-core/ux-optimization-rules.md` §E 做文本抽查（非强制门禁）。
+ *
+ * 特性：
+ * - 统一异常捕获（用户友好的中文错误提示）
  */
 import fs from 'fs';
 import path from 'path';
@@ -100,10 +103,11 @@ function main() {
   if (args.json) {
     console.log(JSON.stringify({ ok: true, path: outPath, dashboard }, null, 2));
   } else {
-    console.log(`已写入 ${outPath}`);
+    console.log(`\n📝 书稿进度快照已保存`);
+    console.log(`   文件: ${outPath}`);
+    console.log(`\n${dashboard}`);
   }
 }
 
-if (process.argv[1] && process.argv[1].includes('write-progress-snapshot')) {
-  main();
-}
+// 使用 tryMain 包装，支持用户友好的错误提示
+import('./lib/user-errors.mjs').then(({ tryMain }) => tryMain(main, { friendlyName: '进度快照' }));

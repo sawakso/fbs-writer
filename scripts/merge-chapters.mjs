@@ -10,15 +10,21 @@
  * --record-artifacts 合并成功后写入 `.fbs/merge-chapters.last.json`（便于与 release-governor / 台账对齐；不自动改 chapter-status）。
  *
  * 默认 glob：相对于 book-root 的 chapters 下全部 md；若不存在则回退为按文件名匹配的 S3 章节模式（见 pickDefaultGlob）
+ *
+ * 特性：
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度追踪（长任务显示进度条）
+ * - 时间估算（自动估算任务耗时）
  */
 import fs from 'fs';
 import path from 'path';
 import { globSync } from 'glob';
 import { upsertBookSnippetIndex } from './lib/fbs-book-snippet-index.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = {
-    bookRoot: process.cwd(),
+    bookRoot: '',  // 默认为空，要求显式提供
     output: null,
     glob: null,
     title: null,
@@ -77,17 +83,33 @@ function naturalSortPaths(paths) {
   );
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+  
+  // 先检查是否提供了 --book-root 参数
+  if (!args.bookRoot) {
+    throw new UserError('章节合并', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请指定书稿根目录，例如：--book-root .'
+    });
+  }
+  
   const root = path.resolve(args.bookRoot);
+
   if (!fs.existsSync(root)) {
-    console.error('merge-chapters: book-root 不存在');
-    process.exit(2);
+    throw new UserError('章节合并', `书稿目录不存在：${root}`, {
+      code: 'ENOENT',
+      solution: '请检查 --book-root 参数指定的路径是否正确'
+    });
   }
+
   if (!args.output) {
-    console.error('merge-chapters: 请指定 --output <文件.md>');
-    process.exit(2);
+    throw new UserError('章节合并', '缺少 --output 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请指定输出文件名，例如：--output output.md'
+    });
   }
+
   const outAbs = path.isAbsolute(args.output) ? args.output : path.join(root, args.output);
   const pattern = args.glob || pickDefaultGlob(root);
   let files = globSync(pattern, {
@@ -99,19 +121,40 @@ function main() {
 
   files = naturalSortPaths(files);
   if (!files.length) {
-    console.error(`merge-chapters: glob「${pattern}」下未找到 .md`);
-    process.exit(1);
+    throw new UserError('章节合并', `未找到符合 "${pattern}" 的 Markdown 文件`, {
+      code: 'ENOENT',
+      solution: '请检查 chapters 目录是否存在，或指定正确的 --glob 模式'
+    });
   }
+
+  // 进度追踪
+  console.log(`\n📚 章节合并`);
 
   const iso = new Date().toISOString();
   const title = args.title || path.basename(outAbs, '.md');
   const chunks = [`# ${title} - 全稿`, '', `> 生成时间（UTC）：${iso}`, '', '---', ''];
 
-  for (const file of files) {
+  // 显示进度
+  console.log(`   找到 ${files.length} 个章节文件`);
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     const rel = path.relative(root, file).replace(/\\/g, '/');
+    const progress = Math.round((i / files.length) * 80); // 80% 用于读取文件
+
+    // 简单的文本进度指示
+    if (files.length > 5) {
+      process.stdout.write(`\r   读取中: [${'█'.repeat(Math.round(progress / 5))}${'░'.repeat(20 - Math.round(progress / 5))}] ${(progress).toFixed(0)}%  ${path.basename(file)}`);
+    }
+
     chunks.push(`<!-- source: ${rel} -->`, '');
     chunks.push(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trimEnd());
     chunks.push('', '');
+  }
+
+  // 清除进度行
+  if (files.length > 5) {
+    process.stdout.write('\r' + ' '.repeat(80) + '\r');
   }
 
   const body = chunks.join('\n');
@@ -127,15 +170,18 @@ function main() {
 
   const bakPath = backupIfExists(outAbs, args.noBackup);
   if (bakPath) {
-    console.log(`merge-chapters: 已备份既有输出 → ${bakPath}`);
+    console.log(`   📦 已备份既有文件 → ${path.basename(bakPath)}`);
   }
 
   fs.mkdirSync(path.dirname(outAbs), { recursive: true });
   fs.writeFileSync(outAbs, body, 'utf8');
-  console.log(
-    `merge-chapters: 已合并 ${files.length} 个源文件 → ${outAbs}；` +
-      `本输出文件非空白字符约 ${mergedNonWs}（口径：本次合并稿全文；与 chapter-status 单列字数可能因范围不同而不一致）`,
-  );
+
+  // 成功提示
+  console.log(`\n✅ 章节合并完成`);
+  console.log(`   已合并 ${files.length} 个章节文件`);
+  console.log(`   输出文件: ${path.relative(root, outAbs).replace(/\\/g, '/')}`);
+  console.log(`   总字符数（不含空白）: ${mergedNonWs.toLocaleString()}`);
+
   if (args.recordArtifacts) {
     recordMergeArtifacts(root, {
       schemaVersion: '1.0.0',
@@ -150,8 +196,9 @@ function main() {
       hint:
         '合并记录已写入 .fbs/merge-chapters.last.json。终稿登记请仍走 release-governor / final-draft-state-machine；台账字数可运行 sync-chapter-status-chars。',
     });
-    console.log('merge-chapters: 已记录合并元数据 → .fbs/merge-chapters.last.json');
+    console.log(`   📝 已记录元数据 → .fbs/merge-chapters.last.json`);
   }
+
   try {
     upsertBookSnippetIndex(root);
   } catch {
@@ -159,4 +206,5 @@ function main() {
   }
 }
 
-import("./lib/user-errors.mjs").then(({ tryMain }) => tryMain(main, { friendlyName: "合并章节" }));
+// 使用 tryMain 包装，支持用户友好的错误提示
+import('./lib/user-errors.mjs').then(({ tryMain }) => tryMain(main, { friendlyName: '章节合并' }));

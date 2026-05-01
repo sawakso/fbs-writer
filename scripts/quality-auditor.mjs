@@ -5,6 +5,10 @@
  * - 机器扫描（S2/S4/S5/S6/B0/C4/VCR）
  * - --auto-fix 生成候选修复文件与 diff
  * - --profile manuscript-full 开启全书稿机检全量 enforce（复盘 F-P0-3）
+ *
+ * 特性:
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度追踪（长任务显示进度）
  */
 import fs from 'fs';
 import path from 'path';
@@ -17,6 +21,7 @@ import {
   resolveScriptSkillRoot,
 } from './lib/quality-runtime.mjs';
 import { imperativeHitsForText, loadS2QualityMachineLexicon } from './lib/s2-quality-lexicon.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 const SCRIPT_SKILL_ROOT = resolveScriptSkillRoot(import.meta.url);
 const ABSOLUTE_PATTERNS = [
@@ -406,13 +411,21 @@ function renderAutoFixDiff(changesByFile, bookRoot) {
   return `# 机器可检项自动修复 diff\n\n> 说明：本文件为 \`quality-auditor.mjs --auto-fix\` 生成的候选修复清单。默认不覆盖原文；如需直接回写，请加 \`--write\`。\n\n${sections.join('\n\n---\n\n')}\n`;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   const files = collectFiles(args);
+
+  // 参数验证
   if (!files.length) {
-    console.error('quality-auditor: 未找到输入文件（用 --inputs 或 --glob）');
-    process.exit(2);
+    throw new UserError('质量审计', '未找到输入文件', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --inputs <文件> 或 --glob <模式> 指定要扫描的文件'
+    });
   }
+
+  // 进度显示
+  console.log(`\n🔍 开始质量审计`);
+  console.log(`   扫描文件数: ${files.length}`);
 
   const shouldBootstrapBare = args.standalone || !fs.existsSync(path.join(args.bookRoot, '.fbs'));
   const runtime = shouldBootstrapBare ? ensureBareQualityWorkspace(args.bookRoot, { files }) : { qcOutputDir: path.join(args.bookRoot, 'qc-output') };
@@ -424,7 +437,17 @@ function main() {
   const changesByFile = [];
   let imperativeBookTotal = 0;
 
-  for (const filePath of files) {
+  for (let i = 0; i < files.length; i++) {
+    const filePath = files[i];
+    const progress = Math.round(((i + 1) / files.length) * 80); // 80% 用于扫描
+
+    // 进度显示
+    if (files.length > 3) {
+      const bar = '█'.repeat(Math.round(progress / 5)) + '░'.repeat(20 - Math.round(progress / 5));
+      const fileName = path.basename(filePath);
+      process.stdout.write(`\r   [${bar}] ${progress}% ${fileName}`);
+    }
+
     const text = fs.readFileSync(filePath, 'utf8');
     const metrics = scanMachineMetrics(text, args.skillRoot);
     imperativeBookTotal += metrics.imperativeTotal || 0;
@@ -460,6 +483,11 @@ function main() {
     }
   }
 
+  // 清除进度行
+  if (files.length > 3) {
+    process.stdout.write('\r' + ' '.repeat(60) + '\r');
+  }
+
   if (args.enforceImperativeBook && imperativeBookTotal > 3) {
     allIssues.push(`[A类命令词·全书] 本次扫描 A 类词合计 ${imperativeBookTotal} 次，超过 quality-S.md 建议阈值 3（须降级为非命令式表述后加 --warn-imperative 复验）`);
   }
@@ -493,21 +521,22 @@ function main() {
     console.log(JSON.stringify(summary, null, 2));
   } else {
     if (allWarnings.length) {
-      console.log('\nquality-auditor: ⚠ 警告');
+      console.log('\n🔍 质量审计 - 警告');
       allWarnings.forEach((warning) => console.log(`  ⚠ ${warning}`));
     }
     if (allIssues.length) {
-      console.log('\nquality-auditor: ❌ 发现阻断问题');
+      console.log('\n🔍 质量审计 - ❌ 发现阻断问题');
       allIssues.forEach((issue) => console.log(`  ✗ ${issue}`));
     }
     if (!allIssues.length && !allWarnings.length) {
-      console.log('quality-auditor: ✅ 通过');
+      console.log('\n✅ 质量审计通过');
     }
-    if (diffPath) console.log(`quality-auditor: 🛠 已生成 auto-fix diff → ${diffPath}`);
-    console.log(`quality-auditor: 报告 → ${jsonOutPath}`);
+    if (diffPath) console.log(`   🛠 已生成 auto-fix diff → ${diffPath}`);
+    console.log(`   📊 报告 → ${jsonOutPath}`);
   }
 
-  process.exit(allIssues.length > 0 ? 1 : 0);
+  return summary;
 }
 
-main();
+// 使用 tryMain 包装，支持用户友好的错误提示
+import('./lib/user-errors.mjs').then(({ tryMain }) => tryMain(main, { friendlyName: '质量审计' }));

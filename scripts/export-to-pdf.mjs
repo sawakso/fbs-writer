@@ -7,8 +7,12 @@
  * - 将 Markdown 内容转换为 PDF 格式
  * - 使用 puppeteer 渲染 HTML
  * - 支持中文排版
+ *
+ * 特性:
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度追踪（长任务显示进度）
+ * - 网络错误重试机制
  */
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,21 +26,34 @@ const __dirname = path.dirname(__filename);
  * @param {object} options - 选项
  * @param {string} options.title - 文档标题
  * @param {string} options.outputPath - 输出路径
+ * @param {Function} options.onProgress - 进度回调 (progress: number, message: string) => void
  */
 export async function markdownToPdf(markdownContent, options = {}) {
   const {
     title = 'FBS-BookWriter 文档',
     outputPath = null,
+    onProgress = null,
   } = options;
 
+  // 进度回调辅助函数
+  const reportProgress = (progress, message) => {
+    if (onProgress) {
+      onProgress(progress, message);
+    }
+  };
+
   // 1. Markdown 转 HTML
+  reportProgress(10, '正在解析 Markdown...');
   const htmlContent = await markdownToHtml(markdownContent, title);
+  reportProgress(30, 'HTML 转换完成');
 
   // 2. HTML 转 PDF
+  reportProgress(40, '正在启动浏览器...');
   let pdfBuffer;
 
   try {
     const puppeteer = await import('puppeteer');
+    reportProgress(50, '正在启动浏览器...');
 
     const browser = await puppeteer.launch({
       headless: 'new',
@@ -44,10 +61,12 @@ export async function markdownToPdf(markdownContent, options = {}) {
     });
 
     const page = await browser.newPage();
+    reportProgress(60, '正在加载内容...');
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
     // 等待字体加载
     await new Promise(r => setTimeout(r, 1000));
+    reportProgress(70, '正在生成 PDF...');
 
     pdfBuffer = await page.pdf({
       format: 'A4',
@@ -72,17 +91,37 @@ export async function markdownToPdf(markdownContent, options = {}) {
     });
 
     await browser.close();
+    reportProgress(90, 'PDF 生成完成');
   } catch (err) {
-    console.warn('[PDF导出] puppeteer 失败:', err.message);
-    throw new Error('PDF 导出失败，puppeteer 不可用。请安装 puppeteer 或使用 html-to-pdf 替代方案');
+    // 导入错误处理模块
+    const { RetryableError, wrapError } = await import('./lib/user-errors.mjs');
+
+    // 判断是否是网络相关的可重试错误
+    const isNetworkError = err.message && (
+      err.message.includes('net::') ||
+      err.message.includes('timeout') ||
+      err.message.includes('connection')
+    );
+
+    if (isNetworkError) {
+      throw new RetryableError('PDF 导出', err.message, {
+        code: 'ETIMEDOUT',
+        solution: '网络不稳定，请稍后重试。',
+      });
+    }
+
+    throw wrapError('PDF 导出', err);
   }
 
   // 3. 输出
   if (outputPath) {
+    reportProgress(95, '正在保存文件...');
     fs.writeFileSync(outputPath, pdfBuffer);
+    reportProgress(100, '导出完成');
     return outputPath;
   }
 
+  reportProgress(100, '导出完成');
   return pdfBuffer;
 }
 
@@ -258,7 +297,7 @@ if (process.argv[1] && process.argv[1].endsWith('export-to-pdf.mjs')) {
 
   if (args.length < 1) {
     console.log(`
-OpenClaw Markdown 转 PDF 导出器
+📄 OpenClaw Markdown 转 PDF 导出器
 
 用法:
   node export-to-pdf.mjs <input.md> [output.pdf] [options]
@@ -285,11 +324,52 @@ OpenClaw Markdown 转 PDF 导出器
     title = args[args.indexOf('--title') + 1];
   }
 
-  import('./lib/user-errors.mjs').then(async ({ tryMain }) => {
+  // 进度显示
+  let currentProgress = 0;
+  let currentMessage = '';
+
+  const onProgress = (progress, message) => {
+    currentProgress = progress;
+    currentMessage = message;
+    // 简单进度显示
+    if (progress > 0 && progress < 100) {
+      const bar = '█'.repeat(Math.round(progress / 5)) + '░'.repeat(20 - Math.round(progress / 5));
+      process.stdout.write(`\r   [${bar}] ${progress.toFixed(0)}% ${message}`);
+    }
+  };
+
+  import('./lib/user-errors.mjs').then(async ({ tryMain, withRetry, isRetryable }) => {
     await tryMain(async () => {
+      console.log(`\n📄 开始导出 PDF`);
+      console.log(`   输入文件: ${inputPath}`);
+      console.log(`   输出文件: ${outputPath}`);
+
       const markdown = fs.readFileSync(inputPath, 'utf8');
-      const result = await markdownToPdf(markdown, { title, outputPath });
-      console.log(result);
-    }, { friendlyName: '导出 PDF' });
+
+      // 带重试的 PDF 导出
+      const result = await withRetry(
+        async () => {
+          return await markdownToPdf(markdown, { title, outputPath, onProgress });
+        },
+        {
+          maxRetries: 2,
+          baseDelay: 2000,
+          onRetry: (attempt, err) => {
+            console.log(`\n\n⚠️  第 ${attempt} 次尝试失败: ${err.message}`);
+            console.log('   正在重试...\n');
+          }
+        }
+      );
+
+      // 清除进度行
+      process.stdout.write('\r' + ' '.repeat(60) + '\r');
+      console.log(`\n✅ PDF 导出成功！`);
+      console.log(`   输出文件: ${result}`);
+
+      return result;
+    }, {
+      friendlyName: 'PDF 导出',
+      jsonOutput: false,
+    });
   });
 }

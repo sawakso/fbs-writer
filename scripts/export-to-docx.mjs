@@ -7,6 +7,11 @@
  * - 将 Markdown 内容转换为 DOCX 格式
  * - 支持中文排版
  * - 支持图片（需本地化）
+ *
+ * 特性:
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度追踪（长任务显示进度）
+ * - 网络错误重试机制
  */
 
 import fs from 'fs';
@@ -23,21 +28,32 @@ const __dirname = path.dirname(__filename);
  * @param {string} options.title - 文档标题
  * @param {string} options.author - 作者
  * @param {string} options.outputPath - 输出路径
+ * @param {Function} options.onProgress - 进度回调 (progress: number, message: string) => void
  */
 export async function markdownToDocx(markdownContent, options = {}) {
   const {
     title = 'FBS-BookWriter 文档',
     author = 'FBS-BookWriter',
     outputPath = null,
+    onProgress = null,
   } = options;
+
+  // 进度回调辅助函数
+  const reportProgress = (progress, message) => {
+    if (onProgress) {
+      onProgress(progress, message);
+    }
+  };
 
   let htmlContent;
   let docxBuffer;
 
   // 方法一：尝试使用 html-to-docx
+  reportProgress(10, '正在解析 Markdown...');
   try {
     const HTMLToDOCX = (await import('html-to-docx')).default;
     htmlContent = await markdownToHtml(markdownContent);
+    reportProgress(40, '正在转换为 DOCX...');
     const docx = await HTMLToDOCX(htmlContent, {
       title,
       author,
@@ -48,6 +64,7 @@ export async function markdownToDocx(markdownContent, options = {}) {
 
     // 方法二：尝试使用 docx 库直接构建
     try {
+      reportProgress(40, '正在使用备选方案构建 DOCX...');
       const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
       const paragraphs = parseMarkdownToParagraphs(markdownContent);
 
@@ -61,16 +78,19 @@ export async function markdownToDocx(markdownContent, options = {}) {
       docxBuffer = await Packer.toBuffer(doc);
     } catch (err2) {
       console.error('[DOCX导出] docx 库也失败:', err2.message);
-      throw new Error('DOCX 导出失败，请安装 html-to-docx 或 docx 库');
+      throw err2;
     }
   }
 
   // 输出
+  reportProgress(80, '正在保存文件...');
   if (outputPath) {
     fs.writeFileSync(outputPath, docxBuffer);
+    reportProgress(100, '导出完成');
     return outputPath;
   }
 
+  reportProgress(100, '导出完成');
   return docxBuffer;
 }
 
@@ -247,11 +267,46 @@ OpenClaw Markdown 转 DOCX 导出器
     author = args[args.indexOf('--author') + 1];
   }
 
-  import('./lib/user-errors.mjs').then(async ({ tryMain }) => {
+  import('./lib/user-errors.mjs').then(async ({ tryMain, withRetry, RetryableError }) => {
     await tryMain(async () => {
+      console.log(`\n📝 开始导出 DOCX`);
+      console.log(`   输入文件: ${inputPath}`);
+      console.log(`   输出文件: ${outputPath}`);
+
       const markdown = fs.readFileSync(inputPath, 'utf8');
-      const result = await markdownToDocx(markdown, { title, author, outputPath });
-      console.log(result);
-    }, { friendlyName: '导出 DOCX' });
+
+      // 进度显示
+      const onProgress = (progress, message) => {
+        if (progress > 0 && progress < 100) {
+          const bar = '█'.repeat(Math.round(progress / 5)) + '░'.repeat(20 - Math.round(progress / 5));
+          process.stdout.write(`\r   [${bar}] ${progress.toFixed(0)}% ${message}`);
+        }
+      };
+
+      // 带重试的 DOCX 导出
+      const result = await withRetry(
+        async () => {
+          return await markdownToDocx(markdown, { title, author, outputPath, onProgress });
+        },
+        {
+          maxRetries: 2,
+          baseDelay: 2000,
+          onRetry: (attempt, err) => {
+            console.log(`\n\n⚠️  第 ${attempt} 次尝试失败: ${err.message}`);
+            console.log('   正在重试...\n');
+          }
+        }
+      );
+
+      // 清除进度行
+      process.stdout.write('\r' + ' '.repeat(60) + '\r');
+      console.log(`\n✅ DOCX 导出成功！`);
+      console.log(`   输出文件: ${result}`);
+
+      return result;
+    }, {
+      friendlyName: 'DOCX 导出',
+      jsonOutput: false,
+    });
   });
 }

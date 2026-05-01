@@ -3,9 +3,13 @@
  * session-exit.mjs — FBS 会话退出处理器
  *
  * 目标：
- * - 在用户说“退出/停止/取消/退出福帮手”时，默认先保存当前工作状态
+ * - 在用户说"退出/停止/取消/退出福帮手"时，默认先保存当前工作状态
  * - 统一写入 .fbs/session-resume.json 与 .fbs/smart-memory/session-resume-brief.md
- * - 为下次输入“福帮手”提供可恢复入口
+ * - 为下次输入"福帮手"提供可恢复入口
+ *
+ * 特性：
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度显示（显示保存进度）
  */
 
 import fs from 'fs';
@@ -17,6 +21,7 @@ import { appendWorkbuddyMemoryMirror } from './lib/workbuddy-workspace-memory.mj
 import { registerBookProject } from './lib/fbs-book-projects-registry.mjs';
 import { appendTraceEvent } from './lib/fbs-trace-logger.mjs';
 import { upsertBookSnippetIndex } from './lib/fbs-book-snippet-index.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 function collectRecentChangedFiles(rootDir, sinceMs, maxCount = 50) {
   const out = [];
@@ -108,13 +113,17 @@ session-exit.mjs — FBS 会话退出处理器
 export async function handleSessionExit({ bookRoot, note = '', quiet = false, mirrorWorkbuddyMemory = true } = {}) {
   const startedAtMs = Date.now();
   if (bookRoot == null || String(bookRoot).trim() === '') {
-    throw new Error('缺少 bookRoot：CLI 须传入 --book-root <书稿根目录>');
+    throw new UserError('退出保存', '缺少 bookRoot 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> 指定要保存的书籍项目'
+    });
   }
   const resolvedBookRoot = path.resolve(String(bookRoot).trim());
   if (!fs.existsSync(resolvedBookRoot)) {
-    throw new Error(
-      `书稿根目录不存在：${resolvedBookRoot}。请确认 --book-root 指向已有目录（推荐绝对路径）；勿在书稿子目录下用错误的相对路径调用 session-exit。`,
-    );
+    throw new UserError('退出保存', `书稿根目录不存在：${resolvedBookRoot}`, {
+      code: 'ENOENT',
+      solution: '请确认 --book-root 指向已有目录（推荐绝对路径）'
+    });
   }
   const fbsDir = path.join(resolvedBookRoot, '.fbs');
   fs.mkdirSync(fbsDir, { recursive: true });
@@ -264,6 +273,8 @@ async function main() {
   }
 
   try {
+    console.log(`\n📦 正在保存会话状态...`);
+
     const result = await handleSessionExit({
       bookRoot: args.bookRoot,
       note: args.note,
@@ -276,10 +287,14 @@ async function main() {
       return;
     }
 
-    console.log('FBS 已安全退出并写入恢复摘要。');
-    console.log(`- 恢复卡：${result.files.resumeCard}`);
-    console.log(`- 会话摘要：${result.files.memoryBrief}`);
-    console.log(`- 提示：${result.userMessage}`);
+    console.log(`\n✅ 会话状态已保存`);
+    console.log(`   📄 恢复卡: ${result.files.resumeCard}`);
+    if (result.files.memoryBrief) {
+      console.log(`   📝 会话摘要: ${result.files.memoryBrief}`);
+    }
+    if (result.userMessage) {
+      console.log(`\n${result.userMessage}`);
+    }
   } catch (error) {
     if (args.json) {
       console.log(
@@ -294,9 +309,8 @@ async function main() {
         ),
       );
     } else {
-      console.error(`session-exit 失败: ${error.message}`);
+      throw error;  // 让 tryMain 处理错误
     }
-    process.exit(1);
   }
 }
 
