@@ -5,6 +5,15 @@
   "wecom_corp_id": "",
   "books": [
     {
+      "bookRoot": "C:\\Users\\DELL\\Desktop\\如何去南极",
+      "title": "如何去南极",
+      "docUrl": null,
+      "docId": null,
+      "genre": "general",
+      "createdAt": "2026-05-01T08:48:22.871Z",
+      "updatedAt": "2026-05-01T08:50:46.671Z"
+    },
+    {
       "bookRoot": "/root/.openclaw/workspace/test-book",
       "title": "test-book",
       "docUrl": null,

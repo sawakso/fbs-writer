@@ -2,7 +2,7 @@
 name: fbs-writer
 version: 2.1.2
 scene-packs: [general]
-description: "福帮手长文档工具 | 高质量书籍、手册、白皮书、行业指南、长篇报道全流程；S0–S6 写作工作流、S/P/C/B 分层审校、中文排版与 Markdown/HTML/DOCX/PDF 多格式导出。触发词：写书、出书、写长篇、写手册、写白皮书、写行业指南、定大纲、写章节、导出、去AI味、质量自检、整理素材"
+description: "福帮手长文档工具 | 高质量书籍、手册、白皮书、行业指南、长篇报道全流程；S0–S6 写作工作流、S/P/C/B 分层审校、中文排版与 Markdown/HTML/DOCX/PDF 多格式导出。触发词：写书、出书、写长篇、写手册、写白皮书、写行业指南、定大纲、写章节、导出、去AI味、质量自检、整理素材、intent-menu"
 user-invocable: true
 metadata: {"openclaw":{"emoji":"📖","name":"fbs-writer","skillKey":"fbs-writer","requires":{"bins":["node"]}}}
 ---
@@ -17,19 +17,126 @@ metadata: {"openclaw":{"emoji":"📖","name":"fbs-writer","skillKey":"fbs-writer
 
 ## ⚡ 执行速查卡（AI 必读）
 
-### 第一步：开场入口（强制）
+### ⚠️ 输出规范（最高优先级，违反即出错）
 
-**每次用户触发时必须执行：**
+**所有脚本执行后，不得将原始技术输出直接展示给用户。**
+
+| 脚本 | 用户可见内容 |
+|------|------------|
+| `intake-router.mjs --json` | 只展示 `firstResponseContext.userFacingOneLiner`（一句话）+ `firstResponseContext.openingGuidance.primaryOptionsHint`（最多 3 个选项） |
+| `init-fbs-multiagent-artifacts.mjs` | **静默执行**，不展示任何 stdout 内容 |
+| `session-exit.mjs --json` | 只展示 `userMessage` 复述 + 退出摘要 |
+| `quality-auditor-lite.mjs` | 只展示关键发现，不展示完整 JSON |
+| 其他所有脚本 | 除非用户主动要求查看详情，一律静默 |
+
+**举例**：intake-router.mjs 输出 500 行 JSON，AI 只提取 `userFacingOneLiner` 那句话发给用户，其余全部丢弃。
+
+#### 用户可见文本规范（强制，违反即出错）
+
+**绝对禁止在用户可见回复中出现以下内容：**
+- AI 内部前缀：如"这是帮你整理的文档："、"帮你找到了："、"根据分析："、"正在处理..."
+- 过程说明：如"我来帮你"、"让我先..."、"首先"、"接下来"、"执行中"等技术引导语
+- 脚本原始输出：JSON 片段、命令行回显、文件路径、堆栈信息
+
+**正确做法：**
+| ❌ 错误示例 | ✅ 正确示例 |
+|---|---|
+| "这是帮你整理的文档：\n\n第一章..." | "第一章..." |
+| "帮你查了一下运行状态，都正常：\n✅ 宿主能力 正常..." | "✅ 运行正常。可以继续了。" |
+| "让我先执行脚本..." | （直接给结果，不说过程） |
+| "根据刚才的分析，你的书稿..." | "你的书稿..." |
+
+**核心原则**：只输出用户最终需要知道的结论或内容，不输出任何 AI 推理、处理、编排过程的中间语言。
+
+### ⚡ 性能规范（降低回复延迟）
+
+#### intake-router 调用时机
+
+| 场景 | 是否调用 intake-router |
+|---|---|
+| 首次触发写作（"写书"、"写章节"等） | ✅ 调用 |
+| 阶段/章节切换（S0→S1、S1→S2 等） | ✅ 调用 |
+| 连续写作（同一阶段内的多轮对话） | ❌ 跳过，直接使用 session-resume.json 状态 |
+| 用户仅查看进度、状态 | ❌ 跳过，不调用脚本 |
+| S0 情报收集阶段（每轮都需更新摘要） | ✅ 调用 |
+
+**判断逻辑**：若当前阶段未变、书稿目录未切换、用户意图明确为"继续写"，则跳过 intake-router，直接读取 `.fbs/session-resume.json` 的 `resumeCard` 字段推进。
+
+#### 文件同步规则
+
+| 操作 | 同步时机 |
+|---|---|
+| 修改 `E:\github\fbs-writer\SKILL.md` 后 | 仅在用户确认或下次写作会话前同步到安装目录 |
+| 修改脚本文件（.mjs/.js）后 | 仅在相关功能首次被触发前同步 |
+| 其他素材文件（.md/.json） | 不同步安装目录，仅操作书稿根目录 |
+
+**原则**：不在每次回复中执行 copy 操作。
+
+---
+
+### 第一步：意图菜单（强制，new）
+
+**触发写书类操作时，先发意图选择卡片，用户点选后再进入对应流程。**
+
+#### 触发条件
+
+满足以下任一条件时，**跳过脚本，先发 poll 卡片**：
+- 用户说：写书、出书、写长篇、写手册、写白皮书、写行业指南、开始写
+- 无法从对话中确定具体意图（用户只说了"写东西"、"帮我写"）
+
+#### 已存在书稿时
+
+先检查 `.fbs/chapter-status.md` 是否存在：
+- **存在** → 走"第二步：恢复优先"，直接问用户要继续写哪章
+- **不存在** → 发意图选择卡片（见下）
+
+#### 意图菜单卡片发送方式
+
+```json
+message(
+  action="send",
+  channel="webchat",
+  pollQuestion="选择你要创作的作品类型",
+  pollOption=["写长篇（书籍/小说）", "写手册（操作指南/说明书）", "写白皮书（行业报告）", "写行业指南", "写长篇报道"],
+  pollDurationHours=24,
+  target="<userId>"
+)
+```
+
+#### 用户选完后
+
+根据用户选择的选项，将 `--intent` 参数映射如下：
+
+| 用户点击的选项 | --intent 值 |
+|---|---|
+| 写长篇（书籍/小说） | `novel` |
+| 写手册（操作指南/说明书） | `manual` |
+| 写白皮书（行业报告） | `whitepaper` |
+| 写行业指南 | `industry-guide` |
+| 写长篇报道 | `long-report` |
+| （用户自定义输入） | `auto`（走 auto 路由） |
+
+#### 常见误区
+
+- ❌ 不确定意图时直接写代码 → ✅ 先发卡片
+- ❌ 发卡片后不等待用户回复就继续 → ✅ 等用户投票后再继续
+
+---
+
+### 第二步：开场路由（强制）
+
+**意图确定后执行：**
 
 ```bash
-node scripts/intake-router.mjs --book-root <bookRoot> --intent auto --json --enforce-required
+node scripts/intake-router.mjs --book-root <bookRoot> --intent <mappedIntent> --json --enforce-required
 ```
 
 - `--book-root` 需使用书稿根目录的**绝对路径**
+- `--intent` 必须与用户选择的意图对应（见上表）
 - 脚本会自动检测宿主能力、降级到 `node-cli` 模式（在 OpenClaw 下属正常行为）
 - OpenClaw 下建议将 JSON 结果写入 `.fbs/intake-router.last.json` 便于调试
 
-### 第二步：恢复优先（按此顺序）
+### 第三步：恢复优先（按此顺序）
 
 ```
 1. IF exists(.fbs/session-resume.json)  → 读取恢复卡 → 恢复会话
