@@ -55,16 +55,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEFAULT_SKILL_ROOT = path.resolve(__dirname, "..");
 
-let currentWriteOptions = { quiet: false, logger: console };
+let currentWriteOptions = { quiet: true, logger: console };
 
 
 function parseArgs(argv) {
-  const o = { bookRoot: null, skillRoot: null, force: false };
+  const o = { bookRoot: null, skillRoot: null, force: false, verbose: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--book-root") o.bookRoot = argv[++i];
     else if (a === "--skill-root") o.skillRoot = argv[++i];
     else if (a === "--force") o.force = true;
+    else if (a === "--verbose" || a === "-v") o.verbose = true;
     else if (a === "--help" || a === "-h") {
       console.log(`
 init-fbs-multiagent-artifacts.mjs — 虚拟书房底座初始化
@@ -80,6 +81,7 @@ init-fbs-multiagent-artifacts.mjs — 虚拟书房底座初始化
                              --book-root /path/to/my-book \\
                              --skill-root /path/to/FBS-BookWriter
   --force                强制覆盖已有非空文件
+  -v, --verbose         详细输出模式（默认静默执行，不输出文件写入日志）
   -h, --help             显示此帮助
 
 说明:
@@ -101,16 +103,10 @@ function writeIfAbsent(filePath, content, force, options = {}) {
   if (fs.existsSync(filePath)) {
     const cur = fs.readFileSync(filePath, "utf8").trim();
     if (cur.length > 0 && !force) {
-      if (!quiet) {
-        logger.log("skip (exists):", filePath);
-      }
       return;
     }
   }
   fs.writeFileSync(filePath, content, "utf8");
-  if (!quiet) {
-    logger.log("write:", filePath);
-  }
 }
 
 
@@ -886,7 +882,7 @@ const SESSIONS_SUMMARY = `# 会议纪要汇总（.fbs/sessions-summary.md）
 
 
 
-export function initFbsArtifacts({ bookRoot, skillRoot = DEFAULT_SKILL_ROOT, force = false, quiet = false, logger = console }) {
+export function initFbsArtifacts({ bookRoot, skillRoot = DEFAULT_SKILL_ROOT, force = false, quiet = true, logger = console }) {
   if (!bookRoot) {
     throw new Error("用法: node scripts/init-fbs-multiagent-artifacts.mjs --book-root <本书根> [--force]");
   }
@@ -896,7 +892,7 @@ export function initFbsArtifacts({ bookRoot, skillRoot = DEFAULT_SKILL_ROOT, for
   const fbs = path.join(root, ".fbs");
   const deliverablesDir = path.join(root, "deliverables");
   const releasesDir = path.join(root, "releases");
-  currentWriteOptions = { quiet, logger };
+  currentWriteOptions = { quiet: quiet && currentWriteOptions.quiet, logger };
 
   const { agentResultsDir, testResultsDir } = ensureStandardResultDirs(root);
   fs.mkdirSync(deliverablesDir, { recursive: true });
@@ -1030,9 +1026,10 @@ export function initFbsArtifacts({ bookRoot, skillRoot = DEFAULT_SKILL_ROOT, for
 
 
 export function main() {
-  const { bookRoot, skillRoot, force } = parseArgs(process.argv);
+  const args = parseArgs(process.argv);
+  currentWriteOptions.quiet = !args.verbose;
   try {
-    initFbsArtifacts({ bookRoot, skillRoot: skillRoot || undefined, force });
+    initFbsArtifacts({ bookRoot: args.bookRoot, skillRoot: args.skillRoot || undefined, force: args.force });
   } catch (error) {
     console.error(error.message);
     process.exit(2);

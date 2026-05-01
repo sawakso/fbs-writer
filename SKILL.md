@@ -17,6 +17,24 @@ metadata: {"openclaw":{"emoji":"📖","name":"fbs-writer","skillKey":"fbs-writer
 
 ## ⚡ 执行速查卡（AI 必读）
 
+### 🔒 输出抑制强制规则（最高优先级，无豁免）
+
+**所有 exec 调用脚本时，必须在命令结尾加 `> $null 2>&1`，禁止原始 stdout/stderr 进入对话流。**
+
+Windows (PowerShell)：
+```bash
+node scripts/<script>.mjs ... > $null 2>&1
+```
+
+Linux/macOS：
+```bash
+node scripts/<script>.mjs ... > /dev/null 2>&1
+```
+
+**违规则：WebChat 渲染文件卡片 / 用户看到内部台账路径 / JSON 片段泄漏**
+
+---
+
 ### ⚠️ 输出规范（最高优先级，违反即出错）
 
 **所有脚本执行后，不得将原始技术输出直接展示给用户。**
@@ -125,11 +143,14 @@ message(
 
 ### 第二步：开场路由（强制）
 
-**意图确定后执行：**
+**意图确定后执行（必须静默，后台执行，结果写入 JSON 文件再读取）：**
 
 ```bash
-node scripts/intake-router.mjs --book-root <bookRoot> --intent <mappedIntent> --json --enforce-required
+# 静默执行，输出写入结果文件
+node scripts/intake-router.mjs --book-root <bookRoot> --intent <mappedIntent> --json --enforce-required > $null 2>&1
 ```
+
+执行后读取 `.fbs/intake-router.last.json`，从 `firstResponseContext.userFacingOneLiner` 和 `firstResponseContext.openingGuidance.primaryOptionsHint` 提取用户可见内容。
 
 - `--book-root` 需使用书稿根目录的**绝对路径**
 - `--intent` 必须与用户选择的意图对应（见上表）
@@ -148,8 +169,10 @@ node scripts/intake-router.mjs --book-root <bookRoot> --intent <mappedIntent> --
 
 ### 第三步：S0 初始化（无项目时）
 
+**静默初始化（禁止在对话中展示任何 write: 日志）：**
+
 ```bash
-node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot>
+node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>&1
 ```
 
 创建虚拟书房目录结构：
@@ -165,13 +188,13 @@ node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot>
 
 | 用户说了什么 | 立即执行 |
 |------------|---------|
-| 首次进入 / 新建项目 | `node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot>` |
+| 首次进入 / 新建项目 | `node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>&1` |
 | 继续写 / 接着写 | 读 `.fbs/session-resume.json` → 从上次位置继续 |
-| 质量自检 / 去 AI 味 | `node scripts/quality-auditor-lite.mjs --book-root <bookRoot>` |
-| 退出 / 停止 | `node scripts/session-exit.mjs --book-root <bookRoot> --json` |
-| 环境预检 | `node scripts/env-preflight.mjs --json` |
-| S0 素材达标检测 | `node scripts/s0-exit-gate.mjs --book-root <bookRoot> --json` |
-| 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot>` |
+| 质量自检 / 去 AI 味 | `node scripts/quality-auditor-lite.mjs --book-root <bookRoot> > $null 2>&1` |
+| 退出 / 停止 | `node scripts/session-exit.mjs --book-root <bookRoot> --json > $null 2>&1` |
+| 环境预检 | `node scripts/env-preflight.mjs --json > $null 2>&1` |
+| S0 素材达标检测 | `node scripts/s0-exit-gate.mjs --book-root <bookRoot> --json > $null 2>&1` |
+| 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot> > $null 2>&1` |
 
 ---
 
@@ -248,7 +271,7 @@ OpenClaw 下无宿主记忆 API，会话恢复完全依赖文件系统。
 ### 退出时必须执行
 
 ```bash
-node scripts/session-exit.mjs --book-root <bookRoot> --json
+node scripts/session-exit.mjs --book-root <bookRoot> --json > $null 2>&1
 ```
 
 脚本将写入：
@@ -261,8 +284,15 @@ node scripts/session-exit.mjs --book-root <bookRoot> --json
 
 ### 执行脚本（使用 `exec`）
 
+**必须静默执行，禁止让 stdout 进入对话流。**
+
 ```bash
-node scripts/<script-name>.mjs --book-root <bookRoot> [--options]
+# 标准模板（Windows PowerShell）
+node scripts/<script-name>.mjs --book-root <bookRoot> [--options] > $null 2>&1
+
+# 执行后读取结果文件提取需要的内容
+read .fbs/intake-router.last.json   # 从 JSON 读 userFacingOneLiner
+read .fbs/session-resume.json       # 读恢复卡
 ```
 
 ### 读取文件（使用 `read`）
@@ -327,13 +357,9 @@ node scripts/lib/openclaw-host-bridge.mjs --export-caps
 npm install html-to-docx docx puppeteer
 ```
 
-**自动交付与下载链接（重要）：**
-
-导出文件后，**必须**执行交付脚本，自动复制文件到网站可访问目录并输出下载链接：
-
+**静默执行交付脚本（禁止展示原始输出）：**
 ```bash
-# 导出后执行交付脚本
-node scripts/deliver-export.mjs <导出文件路径>
+node scripts/deliver-export.mjs <导出文件路径> > $null 2>&1
 ```
 
 交付脚本会自动：
