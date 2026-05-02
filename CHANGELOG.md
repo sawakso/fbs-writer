@@ -20,9 +20,18 @@
 - `repair-expansion-plan-skeleton.mjs`：单章目标上限 20000 → 200000
 - `workflow-s3-core.md`：Auto-Run 分批粒度 20 章 → 2 章
 
+### 🔄 修改
+
+- **高频脚本改造**（10/43 完成）
+  - 新增 `split-workflow-full.mjs`：工作流拆分（UserError + 友好输出）
+  - 新增 `fbs-doctor.mjs`：技能预检聚合（UserError + 友好输出）
+  - 新增 `fbs-cleanup.mjs`：书稿清理（UserError + 友好输出）
+  - 新增 `expansion-gate.mjs`：扩写门禁（UserError + 友好输出）
+  - 之前已完成：`merge-chapters`、`export-to-pdf`、`export-to-docx`、`quality-auditor`、`session-exit`、`write-progress-snapshot`
+
 ### 计划中
 
-- [ ] 高频脚本改造（剩余 37 个）
+- [ ] 高频脚本改造（剩余 33 个）
 - [ ] OpenClaw 日志体系接入
 - [ ] 功能降级策略（不支持时的优雅提示）
 - [ ] 自动化测试覆盖率提升

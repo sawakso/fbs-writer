@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 /**
- * 聚合预检：SKILL frontmatter、runtime-hints、env-preflight、Node 引擎版本。
+ * fbs-doctor.mjs — FBS 技能预检聚合诊断工具
+ *
+ * 特性：
+ * - 聚合检查 SKILL frontmatter、runtime-hints、env-preflight、Node 引擎版本
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度显示（显示检查进度）
+ *
  * 用法：node scripts/fbs-doctor.mjs [--json]
  */
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(__dirname, '..');
@@ -49,6 +56,17 @@ function checkNodeEngine(root) {
 function main() {
   const args = parseArgs(process.argv);
   const root = args.skillRoot;
+
+  // 检查技能根目录
+  if (!fs.existsSync(root)) {
+    throw new UserError('诊断检查', `技能根目录不存在: ${root}`, {
+      code: 'ENOENT',
+      solution: '请使用 --skill-root 指定正确的技能包路径'
+    });
+  }
+
+  console.log('\n🩺 fbs-doctor（技能根预检聚合）\n');
+  console.log('  📂 技能根:', root);
 
   const steps = [
     { id: 'validate-skill-frontmatter', ...runScript(root, 'scripts/validate-skill-frontmatter.mjs') },
@@ -99,7 +117,7 @@ function main() {
   if (args.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.log('\n🩺 fbs-doctor（技能根预检聚合）\n');
+    console.log('\n--- 检查结果 ---');
     for (const c of checks) {
       const m = c.ok ? '✅' : '❌';
       console.log(`  ${m} ${c.phase}: ${c.detail}`);
@@ -110,5 +128,11 @@ function main() {
 }
 
 if (process.argv[1] && process.argv[1].includes('fbs-doctor')) {
-  main();
+  // 使用 tryMain 包装，支持用户友好的错误提示
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '诊断检查' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

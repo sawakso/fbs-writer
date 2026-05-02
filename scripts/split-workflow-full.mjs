@@ -1,6 +1,16 @@
 #!/usr/bin/env node
+/**
+ * split-workflow-full.mjs — FBS 工作流文件拆分工具
+ *
+ * 特性：
+ * - 将 section-3-workflow.full.md 拆分为 S0-S6 各阶段文件
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度显示（显示拆分进度）
+ */
+
 import fs from "fs";
 import path from "path";
+import { UserError } from "./lib/user-errors.mjs";
 
 function parseArgs(argv) {
   const repoRoot = process.cwd();
@@ -36,9 +46,12 @@ function main() {
   const fullFile = path.resolve(args.fullFile);
   const outDir = path.resolve(args.outDir);
 
+  // 检查源文件
   if (!fs.existsSync(fullFile)) {
-    console.error(`未找到文件: ${fullFile}`);
-    process.exit(2);
+    throw new UserError("工作流拆分", `未找到源文件: ${fullFile}`, {
+      code: "ENOENT",
+      solution: "请确认 --full-file 指向正确的文件路径"
+    });
   }
 
   const lines = fs.readFileSync(fullFile, "utf8").split(/\r?\n/);
@@ -66,23 +79,49 @@ function main() {
     S6: "workflow-s6.md",
   };
 
-  ensureDir(outDir);
+  // 创建输出目录
+  try {
+    ensureDir(outDir);
+  } catch (err) {
+    throw new UserError("工作流拆分", `无法创建输出目录: ${outDir}`, {
+      code: "EACCES",
+      solution: "请检查目录权限或指定其他输出路径"
+    });
+  }
+
+  const total = order.length;
+  console.log(`\n📦 开始拆分工作流文件（共 ${total} 个阶段）...\n`);
 
   for (let i = 0; i < order.length; i++) {
     const key = order[i];
     const start = starts[key] - 1;
     const end = i < order.length - 1 ? starts[order[i + 1]] - 2 : lines.length - 1;
-    if (start < 0 || start >= lines.length || end < start) continue;
+
+    if (start < 0 || start >= lines.length || end < start) {
+      console.warn(`⚠️ 跳过 ${key}：索引范围无效`);
+      continue;
+    }
 
     const header = `# ${key} 分卷\n\n> 来源：section-3-workflow.full.md（自动切分）\n\n`;
     const bodyRaw = lines.slice(start, end + 1).join("\n");
     const body = shiftRelativeLinks(bodyRaw);
     const outPath = path.join(outDir, files[key]);
+
     fs.writeFileSync(outPath, header + body + "\n", "utf8");
-    console.log(`已生成: ${outPath}`);
+    console.log(`  ✅ [${i + 1}/${total}] ${key}: ${path.basename(outPath)}`);
   }
 
-  console.log("split-workflow-full: done");
+  console.log(`\n✨ 工作流拆分完成！输出目录: ${outDir}`);
 }
 
 main();
+
+// 使用 tryMain 包装，支持用户友好的错误提示
+if (process.argv[1] && process.argv[1].endsWith("split-workflow-full.mjs")) {
+  import("./lib/user-errors.mjs")
+    .then(({ tryMain }) => tryMain(main, { friendlyName: "工作流拆分" }))
+    .catch((err) => {
+      console.error("❌ 无法加载错误处理模块:", err.message);
+      process.exit(1);
+    });
+}

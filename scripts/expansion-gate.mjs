@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * 扩写门禁统一入口：若存在可解析的 .fbs/expansion-plan.md，则运行 expansion-word-verify；
- * 通过后默认刷新 chapter-status 字数列并写入 expansion-checkpoint（复盘 P0）。
+ * expansion-gate.mjs — FBS 扩写门禁统一入口
+ *
+ * 特性：
+ * - 若存在可解析的 .fbs/expansion-plan.md，则运行 expansion-word-verify
+ * - 通过后默认刷新 chapter-status 字数列并写入 expansion-checkpoint
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度显示（显示检查进度）
  *
  * 用法：
  *   node scripts/expansion-gate.mjs --book-root <本书根> [--skill-root <技能根>] [--min-ratio 0.9] [--strict] [--no-sync-status]
@@ -13,6 +18,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from "./lib/user-errors.mjs";
 import { runExpansionWordVerify } from "./expansion-word-verify.mjs";
 import { syncChapterStatusChars } from "./sync-chapter-status-chars.mjs";
 import { runSourceWriteBackup } from "./source-write-backup.mjs";
@@ -181,13 +187,22 @@ export function runExpansionGate(
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error(
-      "用法: node scripts/expansion-gate.mjs --book-root <本书根> [--skill-root <技能根>] [--min-ratio 0.9] [--strict] [--no-sync-status]"
-      + " [--no-source-backup] [--backup-scope expansion|refinement|all] [--force]"
-    );
-    process.exit(2);
+    throw new UserError('扩写门禁', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> 指定要检查的书稿'
+    });
   }
+
+  console.log('\n🚪 expansion-gate（扩写门禁检查）');
+  console.log(`  📂 书稿根: ${args.bookRoot}`);
+  console.log(`  📊 字数达标率: >= ${(args.minRatio * 100).toFixed(0)}%`);
+  if (args.strict) console.log('  🔒 严格模式: 开启');
+  if (args.force) console.log('  ⚡ 强制执行: 开启');
+  console.log('');
+
   const r = runExpansionGate(args.bookRoot, args.skillRoot, {
     minRatio: args.minRatio,
     strict: args.strict,
@@ -196,28 +211,43 @@ function main() {
     backupScope: args.backupScope,
     force: args.force,
   });
-  if (r.message) console.log(`[expansion-gate] ${r.message}`);
+
   writeGateSnapshot(args.bookRoot, {
     code: r.code,
     message: r.message || null,
     verifiedRows: Array.isArray(r.results) ? r.results.length : 0,
     backupDir: r.backup?.backupDir || null,
   });
+
+  // 友好的输出
   if (r.backup?.backupDir) {
-    console.log(`[expansion-gate] source backup -> ${r.backup.backupDir} (${r.backup.count} files)`);
+    console.log(`  💾 源码备份: ${r.backup.backupDir}（${r.backup.count} 个文件）`);
   }
-  if (r.results) {
+  if (r.results && r.results.length > 0) {
+    console.log('\n  --- 扩写检查结果 ---');
     for (const x of r.results) {
-      const st = x.ok ? "PASS" : "FAIL";
-      console.log(`[expansion-gate] ${st} ${x.file} actual=${x.actual} min=${x.minRequired}`);
+      const icon = x.ok ? '✅' : '❌';
+      console.log(`  ${icon} ${x.file}: ${x.actual}/${x.minRequired} 字`);
     }
   }
-  if (typeof r.syncUpdated === "number") {
-    console.log(`[expansion-gate] chapter-status 字数列已同步（${r.syncUpdated} 行变更）`);
+  if (typeof r.syncUpdated === 'number') {
+    console.log(`\n  📝 chapter-status 字数列已同步（${r.syncUpdated} 行变更）`);
+  }
+  if (r.code === 0) {
+    console.log('\n✅ 扩写门禁检查通过！\n');
+  } else {
+    console.log(`\n❌ 扩写门禁检查未通过（退出码: ${r.code}）`);
+    if (r.message) console.log(`   原因: ${r.message}`);
   }
   process.exit(r.code);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+  // 使用 tryMain 包装，支持用户友好的错误提示
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '扩写门禁' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

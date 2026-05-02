@@ -1,6 +1,18 @@
 #!/usr/bin/env node
+/**
+ * fbs-cleanup.mjs — FBS 书稿清理工具
+ *
+ * 特性：
+ * - 清理过期的缓存文件（p0-audit-report.json、gates/*.last.json）
+ * - 统一异常捕获（用户友好的中文错误提示）
+ * - 进度显示（显示清理进度）
+ * - 支持 --dry-run 模拟运行
+ *
+ * 用法: node scripts/fbs-cleanup.mjs --book-root <本书根> [--dry-run] [--json]
+ */
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const args = {
@@ -80,14 +92,27 @@ function cleanupStaleCaches(bookRoot, dryRun) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/fbs-cleanup.mjs --book-root <本书根> [--target stale-caches] [--dry-run] [--json]');
-    process.exit(2);
+    throw new UserError('清理工具', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> 指定要清理的书稿'
+    });
   }
   if (args.target !== 'stale-caches') {
-    console.error(`不支持的 target: ${args.target}`);
-    process.exit(2);
+    throw new UserError('清理工具', `不支持的 target: ${args.target}`, {
+      code: 'ERR_INVALID_ARG',
+      solution: '目前仅支持 stale-caches'
+    });
   }
+
+  console.log(`\n🧹 fbs-cleanup（清理 ${args.target}）`);
+  console.log(`  📂 书稿根: ${args.bookRoot}`);
+  if (args.dryRun) {
+    console.log('  🔍 模拟运行（不会实际删除文件）');
+  }
+  console.log('');
 
   const result = {
     target: args.target,
@@ -101,7 +126,25 @@ function main() {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
-  process.stdout.write(`fbs-cleanup(${args.target}): removed=${result.removed.length}, kept=${result.kept.length}\n`);
+
+  // 友好的输出
+  if (result.notes[0] === '.fbs 不存在，跳过') {
+    console.log('⚠️  未找到 .fbs 目录，无需清理');
+  } else {
+    console.log(`  ✅ 已删除: ${result.removed.length} 个过期文件`);
+    console.log(`  📌 已保留: ${result.kept.length} 个有效文件`);
+  }
+  console.log('');
 }
 
 main();
+
+// 使用 tryMain 包装，支持用户友好的错误提示
+if (process.argv[1] && process.argv[1].endsWith('fbs-cleanup.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '清理工具' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}
