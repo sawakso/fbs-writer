@@ -100,6 +100,132 @@ FBS-Writer 采用六阶段写作流程：
 
 ---
 
+## 📂 项目结构
+
+```
+fbs-bookwriter-lrz/
+├── 📖 README.md                    # 项目入口文档
+├── 📖 SKILL.md                     # WorkBuddy 技能入口
+├── 📦 package.json                 # Node.js 依赖配置
+│
+├── 📁 scripts/                    # 🔥 核心脚本目录（187个脚本）
+│   ├── 📁 lib/                     # 🔥 共享代码库（43个核心库）
+│   │   ├── user-errors.mjs         # 统一异常处理（UserError）
+│   │   ├── ux-progress-enhanced.mjs # 进度追踪系统
+│   │   ├── openclaw-host-bridge.mjs  # OpenClaw 宿主桥接
+│   │   ├── channel-pack.mjs        # 三通道适配层
+│   │   ├── intent-canonical.mjs    # 意图规范化
+│   │   ├── scale-tiers.mjs         # 批量生成档位
+│   │   └── ...                     # 38个更多核心库
+│   │
+│   ├── init-fbs-multiagent-artifacts.mjs  # S0 初始化
+│   ├── write-outline.mjs           # S1 大纲生成
+│   ├── expansion-workflow.mjs      # S3 内容扩写
+│   ├── polish-workflow.mjs         # S4 润色优化
+│   ├── quality-auditor.mjs         # S5 质量审计
+│   ├── merge-chapters.mjs          # S6 合并章节
+│   ├── export-to-pdf.mjs          # S6 PDF导出
+│   ├── export-to-docx.mjs         # S6 DOCX导出
+│   ├── split-workflow-full.mjs    # 流程拆分工具
+│   ├── fbs-doctor.mjs             # 技能预检诊断
+│   ├── fbs-cleanup.mjs            # 缓存清理
+│   ├── expansion-gate.mjs         # 扩写门禁检查
+│   └── [175+ 更多脚本...]          # 各类辅助脚本
+│
+├── 📁 docs/                        # 📚 开发文档
+│   ├── DEVELOPMENT.md             # 🔥 开发指南
+│   ├── TEST-CASES.md              # 基础测试用例（42个）
+│   ├── TEST-CASES-PHASES.md       # 🔥 分阶段测试用例（45个）
+│   └── history/                   # 历史文档
+│
+├── 📁 openclaw/                    # 🔥 OpenClaw 适配层
+│   └── fbs-bookwriter-lrz/         # OpenClaw 技能包
+│       ├── skill.json              # 技能配置
+│       ├── SKILL.md                # OpenClaw 入口
+│       ├── index.mjs               # 适配层索引
+│       └── adapter/                # 适配器
+│           ├── context-mapper.mjs  # 上下文映射器
+│           └── result-formatter.mjs # 结果格式化
+│
+├── 📁 .codebuddy/                  # CodeBuddy 配置
+│   ├── agents/                     # Agent 定义
+│   └── providers/                  # Provider 配置
+│
+├── 📁 scene-packs/                 # 🔥 场景包
+│   ├── official-schema.json        # 官方场景模式
+│   ├── enterprise.json             # 企业场景
+│   └── user-config.json            # 用户自定义
+│
+├── 📁 references/                  # 📖 写作规范参考
+│   ├── 01-core/                    # 核心规范
+│   │   ├── s3-expansion-phase.md   # S3扩写规范
+│   │   ├── s3-refinement-phase.md  # S3精炼规范
+│   │   ├── section-3-workflow.full.md # 完整工作流
+│   │   └── intent-canonical.json   # 意图规范
+│   └── scene-packs/                # 场景包定义
+│
+├── 📁 assets/                      # 资源文件
+│   ├── books.config.mjs            # 书稿配置
+│   └── build.mjs                   # 构建脚本
+│
+└── CHANGELOG.md                   # 📝 变更日志
+```
+
+---
+
+## 🎯 核心模块速查
+
+### 🔥 共享代码层 (`scripts/lib/`)
+
+| 文件 | 功能 | 重要性 |
+|------|------|--------|
+| `user-errors.mjs` | 统一异常处理，支持友好错误提示 | ⭐⭐⭐ |
+| `ux-progress-enhanced.mjs` | 进度追踪，支持长/短任务自适应 | ⭐⭐⭐ |
+| `openclaw-host-bridge.mjs` | OpenClaw 宿主环境桥接 | ⭐⭐⭐ |
+| `channel-pack.mjs` | 三通道（WB/OC/CB）适配 | ⭐⭐ |
+| `intent-canonical.mjs` | 用户意图规范化 | ⭐⭐ |
+| `scale-tiers.mjs` | 批量生成档位配置（S/M/L/XL） | ⭐⭐ |
+| `quality-runtime.mjs` | 质量检查运行时 | ⭐⭐ |
+| `memory-adapter.mjs` | 记忆层适配 | ⭐⭐ |
+
+### 📊 六阶段工作流
+
+| 阶段 | 入口脚本 | 核心功能 |
+|------|---------|---------|
+| S0 | `init-fbs-multiagent-artifacts.mjs` | 项目初始化、目录创建 |
+| S1 | `write-outline.mjs` | 大纲生成、章节规划 |
+| S2 | 素材收集 | 素材整理、关键词提取 |
+| S3 | `expansion-workflow.mjs` | 内容扩写、Auto-Run |
+| S4 | `polish-workflow.mjs` | 润色、去AI味 |
+| S5 | `quality-auditor.mjs` | 质量审计、多维检查 |
+| S6 | `export-to-*.mjs` | PDF/DOCX/MD导出 |
+
+### 🌐 三通道支持
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    FBS-BookWriter                         │
+├──────────────┬──────────────┬───────────────────────────┤
+│  WorkBuddy   │   OpenClaw   │       CodeBuddy           │
+├──────────────┼──────────────┼───────────────────────────┤
+│ SKILL.md     │ openclaw/    │ .codebuddy/               │
+│              │ skill.json   │   plugin.json             │
+├──────────────┼──────────────┼───────────────────────────┤
+│ scripts/     │ adapter/     │ providers/                │
+│ (直接执行)    │ (格式化)      │   (Agent调用)             │
+└──────────────┴──────────────┴───────────────────────────┘
+```
+
+### 📚 场景包 (`scene-packs/`)
+
+| 场景 | 配置 | 说明 |
+|------|------|------|
+| `official-schema.json` | 官方标准场景 | 通用书籍、白皮书 |
+| `enterprise.json` | 企业场景 | 商业文档、报告 |
+| `credits-ledger.json` | 积分账本 | 追踪消耗资源 |
+
+---
+
 ## 🔧 技术架构
 
 ### 三通道支持
