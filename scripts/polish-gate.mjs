@@ -5,6 +5,7 @@ import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { globSync } from "glob";
 import { runSourceWriteBackup } from "./source-write-backup.mjs";
+import { UserError } from './lib/user-errors.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -313,28 +314,41 @@ function writeResultJson(jsonOutPath, payload) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
+  if (!args.bookRoot) {
+    throw new UserError('打磨门禁', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+
   const out = runPolishGate(args);
   const snapshotRoot = out?.plan?.bookRoot || args.bookRoot;
   if (snapshotRoot) writeGateSnapshot(snapshotRoot, out);
   writeResultJson(args.jsonOut, out);
   if (out.backup?.backupDir) {
-    console.log(`[polish-gate] source backup -> ${out.backup.backupDir} (${out.backup.count} files)`);
+    console.log(`✅ [打磨门禁] 源文件备份完成 -> ${out.backup.backupDir} (${out.backup.count} 个文件)`);
   }
   if (out.completed && out.quality) {
     const q = out.quality;
     if (q.belowThreshold > 0) {
-      console.log(
-        `[polish-gate] completed: ${q.belowThreshold}/${q.total} chapters below threshold (avg ${q.avgScore}/10), 可继续按未达标章节精修`,
-      );
+      console.log(`⚠️  [打磨门禁] 质量检查完成: ${q.belowThreshold}/${q.total} 个章节未达标 (平均 ${q.avgScore}/10)`);
+      console.log(`   提示: 可继续按未达标章节进行精修`);
     } else {
-      console.log(`[polish-gate] completed: ${q.total}/${q.total} passed (avg ${q.avgScore}/10)`);
+      console.log(`✅ [打磨门禁] 质量检查完成: ${q.total}/${q.total} 个章节已达标 (平均 ${q.avgScore}/10)`);
     }
   } else {
-    console.log(`[polish-gate] ${out.message}`);
+    console.log(`ℹ️  [打磨门禁] ${out.message}`);
   }
   process.exit(out.code);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]).endsWith("polish-gate.mjs")) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('polish-gate.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '打磨门禁' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

@@ -14,6 +14,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { appendBookStateEvent } from "./lib/book-state-db.mjs";
+import { UserError } from "./lib/user-errors.mjs";
 
 function parseArgs(argv) {
   const o = {
@@ -266,12 +267,17 @@ export function runRetroActionSync({ bookRoot, reportPath, enforceP0 = false, al
 
 function main() {
   const args = parseArgs(process.argv);
+
   if (!args.bookRoot) {
-    console.error(
-      "用法: node scripts/retro-action-sync.mjs --book-root <本书根> [--report <报告.md>] [--enforce-p0] [--allow-missing-report] [--json]"
-    );
-    process.exit(2);
+    throw new UserError('复盘整改同步', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+
+  console.log('🔄 开始复盘整改同步...');
+  console.log(`  书稿根目录: ${args.bookRoot}`);
+
   const result = runRetroActionSync({
     bookRoot: args.bookRoot,
     reportPath: args.report,
@@ -288,10 +294,17 @@ function main() {
       `[retro-action-sync] all=${result.items.length} unresolved=${result.unresolved.length} unresolvedP0=${result.unresolvedP0.length}`
     );
   }
-  process.exit(result.code);
+
+  if (result.code !== 0) {
+    process.exit(result.code);
+  }
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('retro-action-sync.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '复盘整改同步' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

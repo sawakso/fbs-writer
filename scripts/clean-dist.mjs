@@ -12,6 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -39,9 +40,12 @@ function rmRecursive(p, dryRun) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  console.log(`[清理构建产物] ${args.dryRun ? '[dry-run] ' : ''}开始清理 dist/ 目录...`);
+
   if (!fs.existsSync(DIST)) {
-    console.log('clean-dist: dist/ 不存在，跳过');
-    process.exit(0);
+    console.log('[清理构建产物] dist/ 不存在，跳过');
+    return;
   }
 
   const entries = fs.readdirSync(DIST, { withFileTypes: true });
@@ -83,8 +87,14 @@ function main() {
     }
   }
 
-  console.log(`clean-dist: 完成（处理项约 ${removed}）${args.prunePre211 ? '，含 --prune-pre-211' : ''}${args.dryRun ? ' [dry-run]' : ''}`);
-  process.exit(0);
+  console.log(`[清理构建产物] ✅ 完成！共处理 ${removed} 项${args.prunePre211 ? '，含 --prune-pre-211' : ''}${args.dryRun ? ' [dry-run]' : ''}`);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('clean-dist.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '清理构建产物' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

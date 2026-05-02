@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const out = { bookRoot: null, jsonOut: null, enforce: false, maxTtfwSec: 10, minFirstPassRate: 60 };
@@ -63,15 +64,43 @@ export function runNorthstarKpi({
   return { code, reportPath: outPath, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
+  if (!args.bookRoot) {
+    throw new UserError('北极星KPI', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--enforce] [--max-ttfw-sec 10] [--min-first-pass-rate 60]'
+    });
+  }
+
+  console.log('⭐ 正在计算北极星KPI...');
+  console.log(`   TTfW 阈值: ≤${args.maxTtfwSec}秒`);
+  console.log(`   首次通过率阈值: ≥${args.minFirstPassRate}%`);
+
   const out = runNorthstarKpi(args);
-  console.log(`[northstar-kpi] status=${out.status} ttfw=${out.northstar?.ttfwSec ?? 0}s firstPass=${out.northstar?.firstPassRate ?? 0}%`);
-  console.log(`[northstar-kpi] report=${out.reportPath}`);
-  process.exit(out.code);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    const statusIcon = out.status === 'passed' ? '✅' : out.status === 'warn' ? '⚠️' : '⏭️';
+    const statusText = out.status === 'passed' ? '通过' : out.status === 'warn' ? '警告' : '跳过';
+    console.log(`✅ 北极星KPI计算完成`);
+    console.log(`   状态: ${statusIcon} ${statusText}`);
+    console.log(`   TTfW: ${out.northstar?.ttfwSec ?? 0}秒 (阈值 ≤${args.maxTtfwSec}秒)`);
+    console.log(`   首次通过率: ${out.northstar?.firstPassRate ?? 0}% (阈值 ≥${args.minFirstPassRate}%)`);
+    console.log(`   报告: ${out.reportPath}`);
+  }
+
+  return out.code;
 }
 
 if (process.argv[1] && process.argv[1].endsWith('northstar-kpi.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '北极星KPI' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

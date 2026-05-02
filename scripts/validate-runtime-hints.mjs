@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError, tryMain } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -331,19 +332,21 @@ function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
     console.log(`用法: node scripts/validate-runtime-hints.mjs [--skill-root <技能根>]`);
-    process.exit(0);
+    return;
   }
 
+  console.log("开始校验 fbs-runtime-hints.json...");
   const { ok, errors } = validateRuntimeHints(args.skillRoot);
   if (ok) {
-    console.log('validate-runtime-hints: ✅ fbs-runtime-hints.json 校验通过');
-    process.exit(0);
+    console.log('✅ fbs-runtime-hints.json 校验通过');
+    return;
   }
-  console.error('validate-runtime-hints: ❌ 校验失败');
-  for (const e of errors) console.error(`  - ${e}`);
-  process.exit(1);
+  throw new UserError('校验运行时提示', `校验失败，发现 ${errors.length} 个问题`, {
+    code: 'ERR_INVALID_ARG_TYPE',
+    solution: '请检查 fbs-runtime-hints.json 文件格式和内容：\n  - ' + errors.join('\n  - ')
+  });
 }
 
 if (process.argv[1] && process.argv[1].includes('validate-runtime-hints')) {
-  main();
+  tryMain(main, { friendlyName: '校验运行时提示' });
 }

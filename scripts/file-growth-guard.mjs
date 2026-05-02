@@ -2,6 +2,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = {
@@ -126,30 +127,53 @@ export function runFileGrowthGuard({
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error(
-      "用法: node scripts/file-growth-guard.mjs --book-root <本书根> [--enforce] [--max-mb 8] [--max-total-mb 64] [--soft-mb 5] [--soft-total-mb 40] [--no-exclude-audit-jsonl] [--json]",
-    );
-    process.exit(2);
+    throw new UserError('文件增长守卫', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+
+  console.log(`[文件增长守卫] 开始扫描...`);
   const out = runFileGrowthGuard(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else {
-    console.log(`[file-growth-guard] ${out.message}`);
-    console.log(`[file-growth-guard] tracked=${out.totals.trackedFiles} total=${out.totals.totalMb}MB`);
-    if (out.advisoryAlerts?.length) {
-      console.log(`[file-growth-guard] advisory=${out.advisoryAlerts.join(", ")}`);
-    }
-    if (out.oversized.length) {
-      console.log(`[file-growth-guard] oversized=${out.oversized.length}`);
-      out.oversized.slice(0, 5).forEach((x) => console.log(`  - ${x.file} (${x.mb}MB)`));
-    }
-    console.log(`[file-growth-guard] output=${out.outputPath}`);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+    return;
   }
-  process.exit(out.code);
+
+  console.log(`[文件增长守卫] ${out.message}`);
+  console.log(`[文件增长守卫] 追踪文件数: ${out.totals.trackedFiles}, 总大小: ${out.totals.totalMb}MB`);
+
+  if (out.advisoryAlerts?.length) {
+    console.log(`[文件增长守卫] ⚠ 警告: ${out.advisoryAlerts.join(", ")}`);
+  }
+
+  if (out.oversized.length) {
+    console.log(`[文件增长守卫] ⚠ 超限文件 ${out.oversized.length} 个:`);
+    out.oversized.slice(0, 5).forEach((x) => console.log(`  - ${x.file} (${x.mb}MB)`));
+  }
+
+  console.log(`[文件增长守卫] 报告已保存: ${out.outputPath}`);
+
+  if (out.blocked) {
+    throw new UserError('文件增长守卫', '文件大小超过阈值', {
+      code: 'ERR_FILE_TOO_LARGE',
+      detail: `${out.oversized.length} 个文件超过 ${args.maxMb}MB 阈值`,
+      solution: '请检查并优化大文件，或调整 --max-mb 参数'
+    });
+  }
+
+  console.log(`[文件增长守卫] ✅ 检查通过`);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('file-growth-guard.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '文件增长守卫' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

@@ -2,6 +2,7 @@
 /**
  * 收集宿主与福帮手诊断信息（策略 A：排障包，不含书稿正文）
  */
+import { UserError } from './lib/user-errors.mjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -47,18 +48,28 @@ function safeReadJson(p) {
   }
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
     printHelp();
     process.exit(0);
   }
 
+  console.log(`[collect-host-diagnostics] 开始收集宿主诊断信息...`);
   const bookRoot = args.bookRoot ? path.resolve(args.bookRoot) : process.cwd();
+
+  if (!fs.existsSync(bookRoot)) {
+    throw new UserError('收集宿主诊断信息', `书稿根目录不存在: ${bookRoot}`, {
+      code: 'ERR_BOOK_ROOT_NOT_FOUND',
+      solution: '请确认 --book-root 指向有效的书稿目录'
+    });
+  }
+
   const fbsDir = path.join(bookRoot, '.fbs');
   const hostCapPath = path.join(fbsDir, 'host-capability.json');
   const wb = resolveWorkBuddyPaths();
 
+  console.log(`[collect-host-diagnostics] 正在读取 WorkBuddy 配置...`);
   const settings = safeReadJson(wb.settingsPath);
   const hostCap = safeReadJson(hostCapPath);
   const binaryToolchain = readBinaryToolchainRegistry(wb.homeDir);
@@ -87,6 +98,8 @@ function main() {
     note: '若 host-capability.json 缺失，请先运行 node scripts/host-capability-detect.mjs --book-root <书稿根> --force',
   };
 
+  console.log(`[collect-host-diagnostics] 诊断信息收集完成！`);
+
   if (args.json) {
     console.log(JSON.stringify(out, null, 2));
   } else {
@@ -97,4 +110,11 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('collect-host-diagnostics.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '收集宿主诊断信息' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

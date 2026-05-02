@@ -9,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { runMaterialMarkerFullScan } from "./material-marker-governor.mjs";
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -56,18 +57,24 @@ function toMarkdown(report) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error(
-      "用法: node scripts/material-marker-scan.mjs --book-root <本书根> [--output <path>] [--json]",
-    );
-    process.exit(2);
-  }
-  if (!fs.existsSync(args.bookRoot)) {
-    console.error("material-marker-scan: book-root 不存在");
-    process.exit(2);
+    throw new UserError('素材标注扫描', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
 
-  const report = runMaterialMarkerFullScan(args.bookRoot);
+  const root = path.resolve(args.bookRoot);
+  if (!fs.existsSync(root)) {
+    throw new UserError('素材标注扫描', `书稿根目录不存在: ${root}`, {
+      code: 'ERR_DIR_NOT_FOUND',
+      solution: '请检查 --book-root 参数指定的路径是否正确'
+    });
+  }
+
+  const report = runMaterialMarkerFullScan(root);
   const outPath = args.output
     ? path.isAbsolute(args.output)
       ? args.output
@@ -82,17 +89,22 @@ function main() {
     if (args.json) {
       console.log(JSON.stringify({ ok: true, written: outPath, fileCount: report.fileCount }, null, 2));
     } else {
-      console.log(`[material-marker-scan] 已写入 ${outPath}（${report.fileCount} 个文件）`);
+      console.log(`✅ [素材标注扫描] 已写入 ${outPath}（${report.fileCount} 个文件）`);
     }
   } else if (args.json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log(`[material-marker-scan] 文件数=${report.fileCount} 合计 markers=${report.totals.totalMarkers}`);
+    console.log(`✅ [素材标注扫描] 文件数=${report.fileCount} 合计 markers=${report.totals.totalMarkers}`);
     console.log(toMarkdown(report));
   }
   process.exit(0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('material-marker-scan.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '素材标注扫描' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

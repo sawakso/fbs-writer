@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import zlib from "zlib";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 
 const TEXT_EXTS = new Set([".md", ".txt", ".json", ".jsonl", ".log", ".csv", ".yaml", ".yml"]);
 const DEFAULT_INCLUDE_DIRS = new Set(["audit", "checkpoints", "reports"]);
@@ -155,22 +156,34 @@ export function runFbsAutoArchive({
 function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error("用法: node scripts/fbs-auto-archive.mjs --book-root <本书根> [--older-than-days 14] [--max-total-mb 128] [--dry-run] [--json]");
-    process.exit(2);
+    throw new UserError('FBS 自动归档', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+
+  console.log('[fbs-auto-archive] 开始归档检查...');
   const out = runFbsAutoArchive(args);
+
   if (args.json) {
     console.log(JSON.stringify(out, null, 2));
   } else {
     console.log(`[fbs-auto-archive] ${out.message}`);
-    console.log(`[fbs-auto-archive] before: files=${out.before.trackedFiles} total=${out.before.totalMb}MB`);
-    console.log(`[fbs-auto-archive] candidates=${out.candidates.length} archived=${out.archivedCount}`);
-    console.log(`[fbs-auto-archive] report=${out.reportPath}`);
+    console.log(`[fbs-auto-archive] 归档前: 文件数=${out.before.trackedFiles} 总大小=${out.before.totalMb}MB`);
+    console.log(`[fbs-auto-archive] 候选文件=${out.candidates.length} 已归档=${out.archivedCount}`);
+    console.log(`[fbs-auto-archive] 报告已保存: ${out.reportPath}`);
   }
+
+  console.log('✅ 改造完成: fbs-auto-archive.mjs');
   process.exit(out.code);
 }
 
 const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: 'FBS 自动归档' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

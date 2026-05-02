@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = {
@@ -88,7 +89,29 @@ function checkEntryContracts({ skillMd, intake, executionContract, onboarding, p
 }
 
 function main() {
+  console.log('🔍 开始入口性能审计...');
   const opts = parseArgs(process.argv);
+
+  // 参数校验
+  if (!opts.bookRoot) {
+    throw new UserError('入口性能审计', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+
+  if (!opts.skillRoot) {
+    throw new UserError('入口性能审计', '缺少 --skill-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --skill-root <技能根目录>'
+    });
+  }
+
+  console.log(`📂 书稿根目录: ${opts.bookRoot}`);
+  console.log(`📂 技能根目录: ${opts.skillRoot}`);
+  console.log(`📊 审计频道: ${opts.channel}`);
+  console.log('');
+
   const issues = [];
 
   const skillMd = mustRead(path.join(opts.skillRoot, 'SKILL.md'));
@@ -139,13 +162,27 @@ function main() {
 
   const link = runBrokenLinks(opts.skillRoot, opts.channel);
   if (!link.ok) {
-    console.error(`[entry-gate] 断链审计失败，code=${link.code ?? 2}${link.error ? ` error=${link.error}` : ''}`);
+    throw new UserError('入口性能审计', `断链审计失败，code=${link.code ?? 2}${link.error ? ` error=${link.error}` : ''}`, {
+      code: 'ERR_CHILD_PROCESS',
+      solution: '请检查 skill-root 和 book-root 参数是否正确，或检查审计脚本是否存在'
+    });
+  }
+
+  if (issues.length > 0 && opts.enforce) {
+    console.error(`❌ 审计发现 ${issues.length} 个问题，enforce 模式已开启，退出`);
     process.exit(1);
   }
 
-  if (issues.length > 0 && opts.enforce) process.exit(1);
+  console.log(`✅ 审计完成，共发现 ${issues.length} 个问题`);
   process.exit(0);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('audit-entry-performance.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '入口性能审计' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}
 

@@ -7,6 +7,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { html: null, strict: false, failOnWarn: false };
@@ -146,24 +147,31 @@ function validateDashDiscipline(html, warns, failures) {
   } else if (density > 1) {
     warns.push(`破折号密度 ${density}/千字 > 1（警告阈值）`);
   }
-  if (singleEmCount > 0) warns.push(`检测到 ${singleEmCount} 处单个 em dash（应统一使用 “——”）`);
-  if (asciiDoubleCount > 0) warns.push(`检测到 ${asciiDoubleCount} 处双连字符 --（应统一使用 “——”）`);
+  if (singleEmCount > 0) warns.push(`检测到 ${singleEmCount} 处单个 em dash（应统一使用 "——"）`);
+  if (asciiDoubleCount > 0) warns.push(`检测到 ${asciiDoubleCount} 处双连字符 --（应统一使用 "——"）`);
 
   return { chars, goodDashCount, density, singleEmCount, asciiDoubleCount };
 }
 
 function main() {
   const args = parseArgs(process.argv);
+
   if (!args.html) {
-    console.error("用法: node scripts/html-delivery-smoke.mjs --html <文件> [--strict] [--fail-on-warn]");
-    process.exit(2);
+    throw new UserError('HTML交付烟测', '缺少 --html 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --html <HTML文件路径>'
+    });
   }
 
   const p = path.resolve(args.html);
   if (!fs.existsSync(p)) {
-    console.error(`✖ 文件不存在: ${p}`);
-    process.exit(1);
+    throw new UserError('HTML交付烟测', `文件不存在: ${p}`, {
+      code: 'ERR_FILE_NOT_FOUND',
+      solution: '请确认 HTML 文件路径是否正确'
+    });
   }
+
+  console.log('🔍 开始 HTML 交付烟测...');
 
   const t = fs.readFileSync(p, "utf8");
   const failures = [];
@@ -187,6 +195,7 @@ function main() {
 
   let dashSummary = null;
   if (args.strict) {
+    console.log('📋 启用 strict 模式检查...');
     validateLinks(p, t, warns, failures);
     validateHeadingStructure(t, warns);
     dashSummary = validateDashDiscipline(t, warns, failures);
@@ -199,14 +208,28 @@ function main() {
   warns.forEach((w) => console.log(`  ⚠ ${w}`));
   if (failures.length) {
     failures.forEach((f) => console.error(`  ✖ ${f}`));
-    process.exit(1);
+    throw new UserError('HTML交付烟测', '基础合法性检查未通过', {
+      code: 'ERR_VALIDATION_FAILED',
+      details: failures
+    });
   }
-  if (warns.length && args.failOnWarn) process.exit(1);
+  if (warns.length && args.failOnWarn) {
+    throw new UserError('HTML交付烟测', '存在警告，--fail-on-warn 模式下阻断', {
+      code: 'ERR_WARNINGS_BLOCKED',
+      details: warns
+    });
+  }
   if (warns.length && args.strict && !args.failOnWarn) {
     console.log("  ⚠ strict 模式：存在告警（默认不阻断，配合 --fail-on-warn 阻断）");
   }
   console.log("  ✅ 通过");
-  process.exit(0);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('html-delivery-smoke.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: 'HTML交付烟测' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

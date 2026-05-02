@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const out = {
@@ -33,11 +34,17 @@ function writeReport(bookRoot, payload) {
 }
 
 export function runDeliveryChain({ bookRoot, skillRoot, runRefine = false, strict = false } = {}) {
-  if (!bookRoot) return { code: 2, message: 'missing --book-root' };
+  if (!bookRoot) {
+    throw new UserError('交付链', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
   const scriptsRoot = path.join(skillRoot, 'scripts');
   const startedAt = new Date().toISOString();
   const steps = [];
 
+  console.log('[delivery-chain] 阶段 1/3: 执行质量检查...');
   const qualityArgs = ['--book-root', bookRoot];
   if (strict) qualityArgs.push('--strict');
   const qualityCode = runNode(path.join(scriptsRoot, 'fbs-quality-full.mjs'), qualityArgs);
@@ -46,8 +53,10 @@ export function runDeliveryChain({ bookRoot, skillRoot, runRefine = false, stric
     const reportPath = writeReport(bookRoot, { startedAt, finishedAt: new Date().toISOString(), status: 'failed', steps });
     return { code: qualityCode, reportPath, status: 'failed' };
   }
+  console.log('[delivery-chain] 质量检查通过');
 
   if (runRefine) {
+    console.log('[delivery-chain] 阶段 2/3: 执行精修打磨...');
     const refineArgs = ['--book-root', bookRoot, '--strict'];
     const refineCode = runNode(path.join(scriptsRoot, 'polish-gate.mjs'), refineArgs);
     steps.push({ id: 'refine', code: refineCode, cmd: `node scripts/polish-gate.mjs ${refineArgs.join(' ')}` });
@@ -55,10 +64,13 @@ export function runDeliveryChain({ bookRoot, skillRoot, runRefine = false, stric
       const reportPath = writeReport(bookRoot, { startedAt, finishedAt: new Date().toISOString(), status: 'failed', steps });
       return { code: refineCode, reportPath, status: 'failed' };
     }
+    console.log('[delivery-chain] 精修打磨通过');
   } else {
     steps.push({ id: 'refine', code: 0, skipped: true, reason: 'run with --run-refine to enable polish-gate' });
+    console.log('[delivery-chain] 阶段 2/3: 跳过精修打磨（未指定 --run-refine）');
   }
 
+  console.log('[delivery-chain] 阶段 3/3: 执行章节导出...');
   const exportArgs = ['--book-root', bookRoot];
   const exportCode = runNode(path.join(scriptsRoot, 'merge-chapters.mjs'), exportArgs);
   steps.push({ id: 'export', code: exportCode, cmd: `node scripts/merge-chapters.mjs ${exportArgs.join(' ')}` });
@@ -74,13 +86,18 @@ export function runDeliveryChain({ bookRoot, skillRoot, runRefine = false, stric
 
 function main() {
   const args = parseArgs(process.argv);
+  console.log('[delivery-chain] 交付链开始执行...');
   const out = runDeliveryChain(args);
-  console.log(`[delivery-chain] status=${out.status}`);
-  console.log(`[delivery-chain] report=${out.reportPath}`);
+  console.log(`[delivery-chain] 最终状态: ${out.status}`);
+  console.log(`[delivery-chain] 报告路径: ${out.reportPath}`);
   process.exit(out.code);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('delivery-chain.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '交付链' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

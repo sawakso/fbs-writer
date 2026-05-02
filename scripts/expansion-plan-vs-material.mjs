@@ -10,6 +10,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -26,23 +27,31 @@ function parseArgs(argv) {
   return o;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error("用法: node scripts/expansion-plan-vs-material.mjs --book-root <本书根>");
-    process.exit(2);
+    throw new UserError('扩写计划与素材对比', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+
   const planPath = path.join(args.bookRoot, ".fbs", "expansion-plan.md");
   const libPath = path.join(args.bookRoot, ".fbs", "material-library.md");
+
+  console.log('[expansion-plan-vs-material] 正在检查扩写计划与素材库...');
   if (!fs.existsSync(planPath)) {
     console.log("[expansion-plan-vs-material] skip: no expansion-plan.md");
     process.exit(0);
+    return;
   }
   const plan = fs.readFileSync(planPath, "utf8");
   let libCount = 0;
   if (fs.existsSync(libPath)) {
     libCount = countMaterialItems(fs.readFileSync(libPath, "utf8"));
   }
+
+  console.log(`[expansion-plan-vs-material] 素材库条目数: ${libCount}`);
   const needsS0 = /需先补\s*S0|需补充素材|严重不足/i.test(plan);
   if (needsS0 && libCount < 5) {
     console.warn(
@@ -56,6 +65,11 @@ function main() {
   process.exit(0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('expansion-plan-vs-material.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '扩写计划与素材对比' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

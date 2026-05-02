@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null, json: false };
@@ -69,18 +70,36 @@ export function runRetroMappingMatrix({ bookRoot } = {}) {
 
 function main() {
   const args = parseArgs(process.argv);
+
   if (!args.bookRoot) {
-    console.error('用法: node scripts/retro-mapping-matrix.mjs --book-root <本书根> [--json]');
-    process.exit(2);
+    throw new UserError('复盘映射矩阵', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+
+  console.log('🗺️ 开始生成复盘映射矩阵...');
+  console.log(`  书稿根目录: ${args.bookRoot}`);
+
   const out = runRetroMappingMatrix(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else console.log(`[retro-mapping] unresolved=${out.totals.unresolved} mapped=${out.totals.mapped}`);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    console.log(`✅ [retro-mapping] 完成`);
+    console.log(`  未解决项: ${out.totals.unresolved}`);
+    console.log(`  已映射项: ${out.totals.mapped}`);
+    console.log(`  输出文件: ${out.jsonPath}`);
+  }
+
   process.exit(out.code);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('retro-mapping-matrix.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '复盘映射矩阵' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { countChars } from './lib/quality-runtime.mjs';
+import { UserError, tryMain } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -45,7 +46,10 @@ export function syncChapterStatusChars(bookRoot, { dryRun = false } = {}) {
   const root = path.resolve(bookRoot);
   const statusPath = path.join(root, '.fbs', 'chapter-status.md');
   if (!fs.existsSync(statusPath)) {
-    throw new Error(`syncChapterStatusChars: 未找到 ${statusPath}`);
+    throw new UserError('同步章节状态字数', `未找到 ${statusPath}`, {
+      code: 'ENOENT',
+      solution: '请检查 --book-root 路径是否正确，确保 .fbs/chapter-status.md 存在'
+    });
   }
 
   const text = fs.readFileSync(statusPath, 'utf8');
@@ -62,7 +66,10 @@ export function syncChapterStatusChars(bookRoot, { dryRun = false } = {}) {
     break;
   }
   if (wordColIndex < 0) {
-    throw new Error('syncChapterStatusChars: 未找到表头「字数」或「字符数」列');
+    throw new UserError('同步章节状态字数', '未找到表头「字数」或「字符数」列', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请检查 chapter-status.md 文件格式是否正确，确保包含「字数」或「字符数」列'
+    });
   }
 
   const out = [];
@@ -102,18 +109,16 @@ export function syncChapterStatusChars(bookRoot, { dryRun = false } = {}) {
 function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error('sync-chapter-status-chars: 请指定 --book-root');
-    process.exit(2);
+    throw new UserError('同步章节状态字数', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
-  try {
-    const { updated, statusPath, dryRun } = syncChapterStatusChars(args.bookRoot, { dryRun: args.dryRun });
-    console.log(`sync-chapter-status-chars: ${dryRun ? '（dry-run）' : ''}约 ${updated} 行字数已对齐 → ${statusPath}`);
-  } catch (e) {
-    console.error(e instanceof Error ? e.message : String(e));
-    process.exit(1);
-  }
+  console.log('开始同步章节状态字数...');
+  const { updated, statusPath, dryRun } = syncChapterStatusChars(args.bookRoot, { dryRun: args.dryRun });
+  console.log(`✅ 同步完成${dryRun ? '（dry-run）' : ''}：约 ${updated} 行字数已对齐 → ${statusPath}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+  tryMain(main, { friendlyName: '同步章节状态字数' });
 }

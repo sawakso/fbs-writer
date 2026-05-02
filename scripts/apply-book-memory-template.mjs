@@ -29,6 +29,7 @@ import { fileURLToPath } from 'url';
 import { writeJsonAtomic, writeTextAtomic } from './lib/safe-fbs-json-write.mjs';
 import { FBS_BRIEF_HANDOFF_PREFIX, wrapFbsMemoryContextBlock } from './lib/fbs-context-fences.mjs';
 import { getHostProfileSummaryForBrief } from './workbuddy-user-profile-bridge.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -221,12 +222,18 @@ export function applyBookMemoryTemplate({
   workbuddyHome = null,
 } = {}) {
   if (!bookRoot) {
-    throw new Error('缺少 --book-root 参数');
+    throw new UserError('书籍记忆模板应用', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> 指定书稿目录'
+    });
   }
 
   const resolvedBookRoot = path.resolve(bookRoot);
   if (!fs.existsSync(resolvedBookRoot)) {
-    throw new Error(`书稿目录不存在: ${resolvedBookRoot}`);
+    throw new UserError('书籍记忆模板应用', `书稿目录不存在: ${resolvedBookRoot}`, {
+      code: 'ERR_DIR_NOT_FOUND',
+      solution: '请检查 --book-root 路径是否正确'
+    });
   }
 
   const fbsDir = path.join(resolvedBookRoot, '.fbs');
@@ -293,35 +300,40 @@ function main() {
     process.exit(0);
   }
 
-  try {
-    const result = applyBookMemoryTemplate({
-      bookRoot: args.bookRoot,
-      profileId: args.profileId,
-      dryRun: args.dryRun,
-      includeHostProfileInBrief: args.includeHostProfile,
-    });
+  console.log('[书籍记忆模板] 🚀 开始应用记忆模板...');
+  
+  const result = applyBookMemoryTemplate({
+    bookRoot: args.bookRoot,
+    profileId: args.profileId,
+    dryRun: args.dryRun,
+    includeHostProfileInBrief: args.includeHostProfile,
+  });
 
-    if (args.dryRun) {
-      console.log('[dry-run] 快照预览：');
-      console.log(JSON.stringify(result.snapshot, null, 2));
-      console.log('\n[dry-run] 会话恢复摘要预览：');
-      console.log(result.brief);
-      process.exit(0);
-    }
-
-    console.log(`[ok] 书稿记忆快照已写入: ${result.snapshotPath}`);
-    console.log(`[ok] 会话恢复摘要已写入: ${result.briefPath}`);
-    console.log(`[info] 当前书稿：${result.bookCtx.bookName || '（未读取到书名）'}`);
-    if (result.bookCtx.currentChapter) console.log(`[info] 当前章节：${result.bookCtx.currentChapter}`);
-    console.log('[info] 在新会话中说「继续上次」或「加载记忆」以恢复书稿状态。');
-  } catch (error) {
-    console.error(`[error] ${error.message}`);
-    process.exit(1);
+  if (args.dryRun) {
+    console.log('[书籍记忆模板] [dry-run] 快照预览：');
+    console.log(JSON.stringify(result.snapshot, null, 2));
+    console.log('\n[书籍记忆模板] [dry-run] 会话恢复摘要预览：');
+    console.log(result.brief);
+    console.log('[书籍记忆模板] ✅ dry-run 完成');
+    process.exit(0);
   }
+
+  console.log(`[书籍记忆模板] ✅ 书稿记忆快照已写入: ${result.snapshotPath}`);
+  console.log(`[书籍记忆模板] ✅ 会话恢复摘要已写入: ${result.briefPath}`);
+  console.log(`[书籍记忆模板] 当前书稿：${result.bookCtx.bookName || '（未读取到书名）'}`);
+  if (result.bookCtx.currentChapter) console.log(`[书籍记忆模板] 当前章节：${result.bookCtx.currentChapter}`);
+  console.log('[书籍记忆模板] 💡 在新会话中说「继续上次」或「加载记忆」以恢复书稿状态。');
 }
 
 if (process.argv[1] && process.argv[1].endsWith('apply-book-memory-template.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '书籍记忆模板应用' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
+
+console.log('✅ 改造完成: apply-book-memory-template.mjs');
 
 

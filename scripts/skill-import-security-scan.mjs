@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const out = { skillRoot: process.cwd(), enforce: false, jsonOut: null };
@@ -46,7 +47,7 @@ export function runSkillImportSecurityScan({ skillRoot, enforce = false, jsonOut
     }
     if (/\.\.\/\.\.\//.test(text)) findings.push(createFinding(abs, 'path-traversal', '发现 ../../ 路径穿越片段'));
     if (/[A-Za-z]:\\/.test(text)) findings.push(createFinding(abs, 'absolute-path', '发现绝对盘符路径，可能破坏可移植性'));
-    if (/```(?:bash|shell|powershell)[\s\S]*?(curl|Invoke-WebRequest|wget)\b/i.test(text)) {
+    if (/(?:bash|shell|powershell)[\s\S]*?(curl|Invoke-WebRequest|wget)\b/i.test(text)) {
       findings.push(createFinding(abs, 'network-shell-snippet', '发现联网脚本片段，建议人工复核来源可信度'));
     }
     if (/(import|load|include)\s+https?:\/\//i.test(text)) {
@@ -69,15 +70,25 @@ export function runSkillImportSecurityScan({ skillRoot, enforce = false, jsonOut
   return { code, reportPath, ...payload };
 }
 
-function main() {
+async function main() {
+  console.log('🔍 技能导入安全扫描启动...');
   const args = parseArgs(process.argv);
   const out = runSkillImportSecurityScan(args);
   console.log(`[skill-import-security-scan] status=${out.status} findings=${out.findings.length}`);
   console.log(`[skill-import-security-scan] report=${out.reportPath}`);
+  if (out.status === 'passed') {
+    console.log('✅ 安全扫描通过，未发现风险项');
+  } else {
+    console.log(`⚠️  发现 ${out.findings.length} 项风险，请查看报告`);
+  }
   process.exit(out.code);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('skill-import-security-scan.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '技能导入安全扫描' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

@@ -1,8 +1,12 @@
 #!/usr/bin/env node
+/**
+ * 时间锚点缺失检查清单：扫描书稿中含时间敏感词但缺少时间锚点的行。
+ */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { globSync } from 'glob';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null, enforce: false, json: false };
@@ -27,6 +31,8 @@ export function runTemporalAnchorMissingChecklist({ bookRoot, enforce = false } 
   const root = path.resolve(bookRoot || process.cwd());
   const governance = path.join(root, '.fbs', 'governance');
   fs.mkdirSync(governance, { recursive: true });
+
+  console.log('[temporal-checklist] 正在扫描书稿中的时间敏感行...');
   const files = globSync('**/*.md', {
     cwd: root,
     absolute: true,
@@ -54,6 +60,8 @@ export function runTemporalAnchorMissingChecklist({ bookRoot, enforce = false } 
       });
     });
   }
+  console.log(`[temporal-checklist] 扫描完成: ${files.length} 个文件, 发现 ${checklist.length} 处缺失`);
+
   const payload = {
     schemaVersion: '1.0.0',
     domain: 'governance',
@@ -68,14 +76,17 @@ export function runTemporalAnchorMissingChecklist({ bookRoot, enforce = false } 
   const mdLines = ['# Temporal Anchor Missing Checklist', '', `- missingAnchors: ${checklist.length}`, ''];
   for (const item of checklist.slice(0, 200)) mdLines.push(`- ${item.file}:${item.line} ${item.snippet}`);
   fs.writeFileSync(mdPath, `${mdLines.join('\n')}\n`, 'utf8');
+  console.log(`[temporal-checklist] 已写入: ${jsonPath}, ${mdPath}`);
   return { code: enforce && checklist.length > 0 ? 1 : 0, message: 'ok', jsonPath, mdPath, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error('用法: node scripts/temporal-anchor-missing-checklist.mjs --book-root <本书根> [--enforce] [--json]');
-    process.exit(2);
+    throw new UserError('时间锚点缺失检查', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--enforce] [--json]'
+    });
   }
   const out = runTemporalAnchorMissingChecklist(args);
   if (args.json) console.log(JSON.stringify(out, null, 2));
@@ -83,8 +94,11 @@ function main() {
   process.exit(out.code);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('temporal-anchor-missing-checklist.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '时间锚点缺失检查' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const out = {
@@ -99,17 +100,34 @@ export function runToolOutputBudgetGate({
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
+  if (!args.bookRoot) {
+    throw new UserError('工具输出预算门禁', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+
   const out = runToolOutputBudgetGate(args);
   if (out.reportPath) {
-    console.log(`[tool-output-budget-gate] status=${out.status} total=${out.totals?.totalMb ?? '?'}MB`);
-    console.log(`[tool-output-budget-gate] report=${out.reportPath}`);
+    console.log(`✅ [工具输出预算门禁] 状态=${out.status} 总大小=${out.totals?.totalMb ?? '?'}MB`);
+    console.log(`   📄 报告已生成: ${out.reportPath}`);
+    if (out.oversized && out.oversized.length > 0) {
+      console.log(`   ⚠️  发现 ${out.oversized.length} 个超大文件，建议清理`);
+    }
   } else {
-    console.log(`[tool-output-budget-gate] ${out.message}`);
+    console.log(`ℹ️  [工具输出预算门禁] ${out.message}`);
   }
   process.exit(out.code);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('tool-output-budget-gate.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '工具输出预算门禁' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
 

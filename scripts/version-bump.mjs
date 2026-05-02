@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,7 +41,10 @@ function printHelp() {
 
 export function compactVersion(version) {
   const match = String(version || '').trim().match(/^(\d+)\.(\d+)\.(\d+)$/);
-  if (!match) throw new Error(`非法版本号：${version}`);
+  if (!match) throw new UserError('版本号递增', `非法版本号：${version}`, {
+    code: 'ERR_MISSING_ARGS',
+    solution: '请传入符合 semver 格式的版本号，如 2.2.0',
+  });
   return `${Number(match[1])}${Number(match[2])}${Number(match[3])}`;
 }
 
@@ -60,7 +64,9 @@ function updateTextFile(filePath, transform) {
 
 function replaceRegex(source, regex, replacer, label) {
   if (!regex.test(source)) {
-    throw new Error(`未命中可替换内容：${label}`);
+    throw new UserError('版本号递增', `未命中可替换内容：${label}`, {
+      solution: `请检查 ${label} 对应的源文件内容是否被手动修改`,
+    });
   }
   return source.replace(regex, replacer);
 }
@@ -328,20 +334,36 @@ function main() {
   const args = parseArgs(process.argv);
   if (args.help || !args.version) {
     printHelp();
-    process.exit(args.help ? 0 : 2);
+    if (args.help) process.exit(0);
+    throw new UserError('版本号递增', '缺少 --version 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --version <x.y.z> 指定目标版本号',
+    });
   }
 
+  console.log(`[version-bump] ${args.dryRun ? '[dry-run] ' : ''}正在将 ${args.skillRoot} 从扫描中递增到 ${args.version}...`);
+
   const plan = planVersionBump(args.skillRoot, args.version);
+  console.log(`[version-bump] 当前版本: ${plan.currentVersion} → 目标版本: ${plan.nextVersion}`);
+  console.log(`[version-bump] 扫描 ${plan.operations.length} 个文件...`);
+
   const result = executeVersionBump(plan, { dryRun: args.dryRun });
-  console.log(JSON.stringify(result, null, 2));
+
+  if (result.changedFiles.length > 0) {
+    console.log(`[version-bump] 已更新 ${result.changedFiles.length} 个文件:`);
+    for (const f of result.changedFiles) console.log(`  - ${f}`);
+  } else {
+    console.log('[version-bump] 无文件变更');
+  }
+
+  return result;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-
-  try {
-    main();
-  } catch (error) {
-    console.error(`version-bump 失败: ${error.message}`);
-    process.exit(1);
-  }
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '版本号递增' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 const DENY_PATTERNS = [
   /git\s+reset\s+--hard/i,
@@ -83,19 +84,25 @@ function parseArgs(argv) {
 }
 
 function main() {
+  console.log('[command-approval-policy] 开始评估命令...');
   const args = parseArgs(process.argv);
   const out = evaluateCommandApproval(args.command);
   if (args.json) {
     console.log(JSON.stringify(out, null, 2));
   } else {
-    console.log(`[command-approval-policy] ${out.approval} (${out.riskLevel}) ${out.reason}`);
-    if (out.command) console.log(`[command] ${out.command}`);
+    console.log(`[command-approval-policy] 审批结果: ${out.approval} | 风险等级: ${out.riskLevel}`);
+    console.log(`[command-approval-policy] 原因: ${out.reason}`);
+    if (out.command) console.log(`[command-approval-policy] 命令: ${out.command}`);
     if (out.userHint) console.log(`[hint] ${out.userHint}`);
   }
   process.exit(out.approval === 'deny' ? 1 : 0);
 }
 
 if (process.argv[1] && path.basename(process.argv[1]) === 'command-approval-policy.mjs') {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '命令审批策略' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

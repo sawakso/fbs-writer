@@ -15,6 +15,7 @@ import {
 } from './lib/quality-runtime.mjs';
 import { imperativeHitsForText, loadS2QualityMachineLexicon } from './lib/s2-quality-lexicon.mjs';
 import { runMaterialMarkerGovernor } from './material-marker-governor.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SKILL = path.resolve(__dirname, '..');
@@ -168,10 +169,16 @@ function runP0Audits(skillRoot, bookRoot) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('book-health-snapshot: 请指定 --book-root');
-    process.exit(2);
+    throw new UserError('书籍健康快照', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+
+  console.log('[书籍健康快照] 开始生成...');
   const bookRoot = args.bookRoot;
   const skillRoot = args.skillRoot;
   const fbs = path.join(bookRoot, '.fbs');
@@ -181,8 +188,10 @@ function main() {
     ? path.resolve(args.jsonOut)
     : path.join(fbs, 'book-health-snapshot.json');
 
+  console.log(`[书籍健康快照] 正在运行环境预检...`);
   const { env } = runEnvPreflight(skillRoot);
 
+  console.log(`[书籍健康快照] 正在检查扩容门禁...`);
   const planPath = path.join(fbs, 'expansion-plan.md');
   const planPresent = fs.existsSync(planPath);
   let gateLastExitCode = null;
@@ -190,17 +199,22 @@ function main() {
     gateLastExitCode = runExpansionGate(bookRoot, skillRoot);
   }
 
+  console.log(`[书籍健康快照] 正在扫描 A 类命令词...`);
   const imperativeClassA = sumImperativeManuscript(bookRoot, skillRoot);
+  console.log(`[书籍健康快照] 正在统计待核实条目...`);
   const pendingCount = countPendingVerification(bookRoot);
+  console.log(`[书籍健康快照] 正在扫描素材标注...`);
   const markerScan = runMaterialMarkerGovernor({ bookRoot, fix: false });
   const staleMatMarkers = Number(markerScan?.totals?.staleMat) || 0;
   const staleDiscardedTags = Number(markerScan?.totals?.discardedTag) || 0;
 
   let p0AuditSummary = null;
   if (args.withP0Audit) {
+    console.log(`[书籍健康快照] 正在运行 P0 审计...`);
     p0AuditSummary = runP0Audits(skillRoot, bookRoot);
   }
 
+  console.log(`[书籍健康快照] 正在检测上次 intake 时间...`);
   const lastIntake = detectLastIntakeAt(bookRoot);
   const intake = {
     lastIntakeAt: lastIntake.value,
@@ -265,8 +279,15 @@ function main() {
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');
-  console.log(`book-health-snapshot: 已写入 ${outPath}（status=${status}）`);
-  process.exit(0);
+  console.log(`[书籍健康快照] ✅ 已写入 ${outPath}（status=${status}）`);
+  console.log(`[书籍健康快照] 完成！`);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('book-health-snapshot.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '书籍健康快照' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

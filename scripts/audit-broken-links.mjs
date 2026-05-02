@@ -1,6 +1,11 @@
 #!/usr/bin/env node
+/**
+ * audit-broken-links.mjs — 断链审计脚本
+ * 扫描 Markdown 文件中的链接，检查本地链接目标是否存在
+ */
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { root: process.cwd(), channel: 'all', enforce: false };
@@ -63,6 +68,10 @@ function collectBookProjectScanRoots(root) {
 function main() {
   const args = parseArgs(process.argv);
   const root = path.resolve(args.root);
+
+  console.log('🔍 开始断链审计...');
+  console.log(`📁 扫描根目录: ${root}`);
+
   let scanRoots = collectSkillScanRoots(root, args.channel);
 
   const files = [];
@@ -81,6 +90,8 @@ function main() {
     }
   }
 
+  console.log(`📄 发现 ${files.length} 个 Markdown 文件，开始检查断链...`);
+
   const broken = [];
   const re = /\[[^\]]*\]\(([^)]+)\)/g;
   for (const f of files) {
@@ -97,10 +108,28 @@ function main() {
   }
 
   console.log(`audit-broken-links: 扫描文件=${files.length}, 断链=${broken.length}`);
-  broken.slice(0, 40).forEach((x) => console.log(`  - ${x.file} -> ${x.link}`));
 
-  if (args.enforce && broken.length > 0) process.exit(1);
-  process.exit(0);
+  if (broken.length > 0) {
+    console.log('⚠️  发现以下断链:');
+    broken.slice(0, 40).forEach((x) => console.log(`  - ${x.file} -> ${x.link}`));
+    if (broken.length > 40) {
+      console.log(`  ... 还有 ${broken.length - 40} 个断链未显示`);
+    }
+  }
+
+  if (args.enforce && broken.length > 0) {
+    throw new UserError('断链审计', `发现 ${broken.length} 个断链`, {
+      code: 'ERR_BROKEN_LINKS',
+      details: broken.slice(0, 10)
+    });
+  }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('audit-broken-links.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '断链审计' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

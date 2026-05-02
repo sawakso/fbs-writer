@@ -7,6 +7,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 import { parseEsmState as parseEsmMarkdown, parseFrontmatterCurrentState } from "./workbuddy-session-snapshot.mjs";
 
 function parseArgs(argv) {
@@ -22,9 +23,9 @@ function parseArgs(argv) {
 function readIterationPhaseFromEsmMarkdown(content) {
   const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return "none";
-  const line = m[1].match(/^\s*iterationPhase:\s*["']?([^"'\r\n]+)/m);
+  const line = m[1].match(/^\s*iterationPhase:\s*["']?[^"'\r\n]+/m);
   if (!line) return "none";
-  return String(line[1]).trim().replace(/^["']|["']$/g, "") || "none";
+  return String(line[1]).trim().replace(/^[\"']|[\"']$/g, "") || "none";
 }
 
 function parseEsmStateForNudge(fbsDir) {
@@ -141,9 +142,11 @@ export function runRuntimeNudge({ bookRoot }) {
   const fbs = path.join(root, ".fbs");
   fs.mkdirSync(fbs, { recursive: true });
 
+  console.log('[runtime-nudge] 正在解析 ESM 状态...');
   const esm = parseEsmStateForNudge(fbs);
   const retroItems = readJsonIfExists(path.join(fbs, "retro-action-items.json"), { totals: {} });
   const skillCandidates = readJsonIfExists(path.join(fbs, "retro-skill-candidates.json"), { candidates: [] });
+  console.log('[runtime-nudge] 正在构建提醒规则...');
   const nudges = buildNudges({ esm, retroItems, skillCandidates });
 
   const out = {
@@ -159,14 +162,17 @@ export function runRuntimeNudge({ bookRoot }) {
   };
   const outPath = path.join(fbs, "runtime-nudges.json");
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2) + "\n", "utf8");
+  console.log(`[runtime-nudge] 已写入结果: ${outPath}`);
   return { code: 0, message: "ok", outputPath: outPath, ...out };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error("用法: node scripts/runtime-nudge.mjs --book-root <本书根> [--json]");
-    process.exit(2);
+    throw new UserError('运行时提醒', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
   const out = runRuntimeNudge({ bookRoot: args.bookRoot });
   if (args.json) console.log(JSON.stringify(out, null, 2));
@@ -178,7 +184,11 @@ function main() {
   process.exit(out.code);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('runtime-nudge.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '运行时提醒' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

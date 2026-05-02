@@ -14,6 +14,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { listDraftMd, matchContains } from "./lib/chapter-md-resolve.mjs";
+import { UserError, tryMain } from "./lib/user-errors.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -110,10 +111,10 @@ function inferChaptersFromFiles(files) {
 function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error(
-      "用法: node scripts/sync-book-chapter-index.mjs --book-root <本书根> [--write-status] [--json-out <path>] [--flat-only]"
-    );
-    process.exit(2);
+    throw new UserError('同步书籍章节索引', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
   const root = path.resolve(args.bookRoot);
   const fbs = path.join(root, ".fbs");
@@ -242,4 +243,6 @@ function main() {
   process.exit(result.allResolved ? 0 : 1);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('sync-book-chapter-index.mjs')) {
+  tryMain(main, { friendlyName: '同步书籍章节索引' });
+}

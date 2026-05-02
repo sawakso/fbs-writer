@@ -11,6 +11,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -148,15 +149,16 @@ export function runExpansionWordVerify(opts) {
   return { code: failed.length ? 1 : 0, results, message: null };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error(
-      "用法: node scripts/expansion-word-verify.mjs --book-root <根> (--file <md> --target-chars <N> | --from-plan .fbs/expansion-plan.md) [--min-ratio 0.9] [--json]"
-    );
-    process.exit(2);
+    throw new UserError('扩写字数验证', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> (--file <md> --target-chars <N> | --from-plan .fbs/expansion-plan.md) [--min-ratio 0.9] [--json]'
+    });
   }
 
+  console.log('[expansion-word-verify] 正在执行扩写字数验证...');
   const out = runExpansionWordVerify({
     bookRoot: args.bookRoot,
     file: args.file,
@@ -166,10 +168,13 @@ function main() {
   });
 
   if (out.message && out.code === 2) {
-    console.error("[expansion-word-verify]", out.message);
-    process.exit(2);
+    throw new UserError('扩写字数验证', out.message, {
+      code: 'ERR_VERIFY_FAILED',
+      solution: '请检查参数或文件路径是否正确'
+    });
   }
 
+  console.log(`[expansion-word-verify] 验证完成, 共 ${out.results.length} 个条目`);
   if (args.json) {
     console.log(JSON.stringify({ code: out.code, message: out.message ?? null, results: out.results }, null, 2));
   } else {
@@ -187,6 +192,11 @@ function main() {
   process.exit(out.code);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('expansion-word-verify.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '扩写字数验证' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

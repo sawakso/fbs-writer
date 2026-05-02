@@ -8,6 +8,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -43,7 +44,10 @@ function ensureDir(p) {
 function copyFileSafe(srcRel, stagingRoot) {
   const src = path.join(ROOT, srcRel);
   if (!fs.existsSync(src)) {
-    throw new Error(`移交清单缺少文件: ${srcRel}`);
+    throw new UserError('打包团队交接', `移交清单缺少文件: ${srcRel}`, {
+      code: 'ENOENT',
+      solution: '请检查仓库中是否存在该文件，或从 EXTRA_FILES 清单中移除',
+    });
   }
   const dst = path.join(stagingRoot, srcRel);
   ensureDir(path.dirname(dst));
@@ -53,8 +57,8 @@ function copyFileSafe(srcRel, stagingRoot) {
 function buildReadme(manifestLines, packagedAt) {
   return `# FBS-BookWriter 团队移交包 · 说明
 
-> **版本**：2.1.1（与 WorkBuddy 过审技能包版本对齐）  
-> **打包时间**：${packagedAt}  
+> **版本**：2.1.1（与 WorkBuddy 过审技能包版本对齐）
+> **打包时间**：${packagedAt}
 > **性质**：团队内部移交用文档与契约快照；**不是**市场上架 zip，**不含**完整 \`scripts/\` 源码树。
 
 ---
@@ -95,15 +99,20 @@ ${manifestLines}
 `;
 }
 
-function main() {
+async function main() {
+  console.log('📦 团队移交包打包启动...');
+
   const internalSrc = path.join(ROOT, 'docs', 'internal');
   if (!fs.existsSync(internalSrc)) {
-    console.error('缺少:', internalSrc);
-    process.exit(1);
+    throw new UserError('打包团队交接', `缺少必要目录: ${internalSrc}`, {
+      code: 'ENOENT',
+      solution: '请确认仓库根目录下存在 docs/internal/ 目录',
+    });
   }
 
   const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'fbs-handoff-'));
   try {
+    console.log('📂 正在复制文档...');
     fs.cpSync(internalSrc, path.join(staging, 'internal'), { recursive: true });
 
     for (const rel of EXTRA_FILES) {
@@ -140,6 +149,7 @@ function main() {
     const readme = buildReadme(rows.join('\n'), packagedAt);
     fs.writeFileSync(path.join(staging, '说明.md'), readme, 'utf8');
 
+    console.log('🗜️  正在压缩 ZIP...');
     ensureDir(DIST);
     const zipPath = path.join(DIST, ZIP_NAME);
     const zip = new AdmZip();
@@ -154,9 +164,17 @@ function main() {
     console.log(`大小：${(bytes / 1024).toFixed(1)} KB`);
     console.log('');
     console.log('上架技能包请使用：npm run pack:workbuddy');
+    console.log('✅ 团队移交包打包完成');
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
   }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('pack-team-handoff.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '打包团队交接' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

@@ -10,6 +10,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 import { buildMergeReportPayload, writeMergeReportFiles } from "./write-merge-report.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,7 +30,7 @@ function walk(dir, out) {
   }
 }
 
-function main() {
+async function main() {
   let bookRoot = null;
   let writeReport = false;
   for (let i = 2; i < process.argv.length; i++) {
@@ -37,15 +38,22 @@ function main() {
     else if (process.argv[i] === "--write-report") writeReport = true;
   }
   if (!bookRoot) {
-    console.error("用法: node scripts/merge-expansion-batch.mjs --book-root <本书根> [--write-report]");
-    process.exit(2);
+    throw new UserError('合并扩写批次', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--write-report]'
+    });
   }
+
+  console.log('[merge-expansion-batch] 正在扫描 *.expanded.md 文件...');
   const found = [];
   walk(bookRoot, found);
   if (!found.length) {
     console.log("[merge-expansion-batch] 未发现 *.expanded.md");
     process.exit(0);
+    return;
   }
+
+  console.log(`[merge-expansion-batch] 发现 ${found.length} 个临时扩写稿件`);
   const fileEntries = [];
   for (const exp of found) {
     const base = exp.replace(/\.expanded\.md$/i, ".md");
@@ -57,6 +65,7 @@ function main() {
     fileEntries.push({ relPath: relExp, action: "scanned", absPath: exp });
   }
   if (writeReport) {
+    console.log('[merge-expansion-batch] 正在写入合流报告...');
     const payload = buildMergeReportPayload({
       bookRoot,
       reason: "batch_merge",
@@ -73,6 +82,11 @@ function main() {
   process.exit(0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('merge-expansion-batch.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '合并扩写批次' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

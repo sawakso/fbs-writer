@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -58,16 +59,28 @@ function parseArgs(argv) {
 }
 
 function main() {
+  console.log('🔍 开始扫描相邻章节...');
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/scan-adjacent-chapters.mjs --book-root <本书根> [--warn 0.35]');
-    process.exit(2);
+    throw new UserError('相邻章节扫描', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--warn 0.35]'
+    });
   }
+
+  console.log(`📂 书稿根目录: ${args.bookRoot}`);
+  console.log(`📊 警告阈值: ${args.warn}`);
+  console.log('');
+
   const statusPath = path.join(args.bookRoot, '.fbs', 'chapter-status.md');
   if (!fs.existsSync(statusPath)) {
-    console.log('[scan-adjacent-chapters] 无 chapter-status，跳过');
+    console.log('⚠️ 无 chapter-status.md，跳过');
     process.exit(0);
   }
+
+  console.log(`📄 正在读取: ${statusPath}`);
   const lines = fs.readFileSync(statusPath, 'utf8').split(/\r?\n/);
   const paths = [];
   for (const line of lines) {
@@ -77,10 +90,14 @@ function main() {
     const abs = resolveChapterPath(args.bookRoot, cells[1]);
     if (abs) paths.push(abs);
   }
+
   if (paths.length < 2) {
-    console.log('[scan-adjacent-chapters] 可解析路径不足 2，跳过');
+    console.log('⚠️ 可解析路径不足 2，跳过');
     process.exit(0);
   }
+
+  console.log(`📊 找到 ${paths.length} 个章节，开始对比相邻章节...\n`);
+
   let maxSim = 0;
   let worst = null;
   for (let i = 1; i < paths.length; i++) {
@@ -92,18 +109,26 @@ function main() {
       worst = [paths[i - 1], paths[i]];
     }
     console.log(
-      `[scan-adjacent-chapters] ${path.basename(paths[i - 1])} vs ${path.basename(paths[i])} Jaccard=${sim.toFixed(3)}`
+      `  ${path.basename(paths[i - 1])} vs ${path.basename(paths[i])} Jaccard=${sim.toFixed(3)} ${sim >= args.warn ? '⚠️' : '✅'}`
     );
     if (sim >= args.warn) {
-      console.warn('[scan-adjacent-chapters] WARN: 相邻章标题词重叠较高，请核对扩写边界与差异化结构。');
+      console.log('  ⚠️ 警告: 相邻章标题词重叠较高，请核对扩写边界与差异化结构。\n');
     }
   }
+
   if (worst) {
-    console.log(`[scan-adjacent-chapters] max=${maxSim.toFixed(3)} (${path.basename(worst[0])} vs ${path.basename(worst[1])})`);
+    console.log(`\n📊 最大相似度: ${maxSim.toFixed(3)} (${path.basename(worst[0])} vs ${path.basename(worst[1])})`);
   }
+
+  console.log('\n✅ 相邻章节扫描完成');
   process.exit(0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('scan-adjacent-chapters.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '相邻章节扫描' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { UserError } from './lib/user-errors.mjs';
 import fs from 'fs';
 import path from 'path';
 
@@ -49,11 +50,30 @@ function collectCandidates(bookRoot) {
 }
 
 export function runSessionRecallSummarizer({ bookRoot, query = '', jsonOut = null } = {}) {
-  if (!bookRoot) return { code: 2, message: 'missing --book-root' };
+  if (!bookRoot) {
+    throw new UserError('会话回忆摘要', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--query <关键词>] [--json-out <输出路径>]'
+    });
+  }
+
   const root = path.resolve(bookRoot);
-  if (!fs.existsSync(root)) return { code: 2, message: `book-root not exists: ${root}` };
+  if (!fs.existsSync(root)) {
+    throw new UserError('会话回忆摘要', `书稿根目录不存在: ${root}`, {
+      code: 'ERR_BOOK_ROOT_NOT_FOUND',
+      solution: '请确认 --book-root 指向有效的书稿目录'
+    });
+  }
+
+  console.log(`[session-recall-summarizer] 开始收集会话回忆信息，书稿根目录: ${root}`);
   const q = String(query || '').trim().toLowerCase();
+  if (q) {
+    console.log(`[session-recall-summarizer] 查询关键词: "${q}"`);
+  }
+
   const candidates = collectCandidates(root);
+  console.log(`[session-recall-summarizer] 发现 ${candidates.length} 个候选文件，正在扫描...`);
+
   const hits = [];
   for (const abs of candidates) {
     const text = readTextSafe(abs);
@@ -67,6 +87,7 @@ export function runSessionRecallSummarizer({ bookRoot, query = '', jsonOut = nul
     const hitLine = lines.find((x) => x.toLowerCase().includes(q));
     if (hitLine) hits.push({ file: rel, excerpt: clip(hitLine) });
   }
+
   const payload = {
     generatedAt: new Date().toISOString(),
     bookRoot: root,
@@ -78,21 +99,25 @@ export function runSessionRecallSummarizer({ bookRoot, query = '', jsonOut = nul
   const outPath = path.resolve(jsonOut || path.join(root, '.fbs', 'session-recall-summary.json'));
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
+
+  console.log(`[session-recall-summarizer] 命中 ${hits.length} 条记录`);
+  console.log(`[session-recall-summarizer] 报告已保存到: ${outPath}`);
+
   return { code: 0, reportPath: outPath, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+  console.log(`[session-recall-summarizer] 开始执行会话回忆摘要任务...`);
   const out = runSessionRecallSummarizer(args);
-  if (out.code !== 0) {
-    console.error(`[session-recall-summarizer] ${out.message}`);
-    process.exit(out.code);
-  }
-  console.log(`[session-recall-summarizer] hits=${out.hitCount}`);
-  console.log(`[session-recall-summarizer] report=${out.reportPath}`);
+  console.log(`[session-recall-summarizer] 会话回忆摘要完成！`);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('session-recall-summarizer.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '会话回忆摘要' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

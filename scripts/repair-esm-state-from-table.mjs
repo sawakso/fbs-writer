@@ -9,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { parseFrontmatterCurrentState } from "./workbuddy-session-snapshot.mjs";
+import { UserError, tryMain } from "./lib/user-errors.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -79,15 +80,24 @@ export function repairEsmStateFromTable(bookRoot, { dryRun = false } = {}) {
 function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error("用法: node scripts/repair-esm-state-from-table.mjs --book-root <本书根> [--dry-run] [--json]");
-    process.exit(2);
+    throw new UserError('修复ESM状态', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+  console.log("开始修复 ESM 状态...");
   const r = repairEsmStateFromTable(args.bookRoot, { dryRun: args.dryRun });
-  if (args.json) console.log(JSON.stringify(r, null, 2));
-  else console.log(`[repair-esm-state-from-table] ${r.message} ${r.tableStage || ""}`);
-  process.exit(r.code === 0 || r.code === 1 ? 0 : 2);
+  if (r.ok) {
+    console.log(`✅ ${r.message} ${r.tableStage || ""}`);
+  } else {
+    throw new UserError('修复ESM状态', r.message, {
+      code: r.code === 2 ? 'ENOENT' : 'ERR_INVALID_ARG_TYPE',
+      solution: r.code === 2 ? '请检查 --book-root 路径是否正确' : '请检查 esm-state.md 文件格式'
+    });
+  }
+  process.exit(0);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+  tryMain(main, { friendlyName: '修复ESM状态' });
 }

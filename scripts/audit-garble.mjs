@@ -26,6 +26,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 // ─── 默认参数 ────────────────────────────────────────────────────────────────
 
@@ -201,6 +202,9 @@ function main() {
   const opts = parseArgs(process.argv);
   const root = path.resolve(opts.root);
 
+  console.log('🔍 开始乱码审计...');
+  console.log(`📁 扫描根目录: ${root}`);
+
   // 解析扫描目录
   const candidates = opts.dirs.length > 0 ? opts.dirs : DEFAULT_SCAN_DIRS;
   const scanDirs = [];
@@ -214,11 +218,17 @@ function main() {
     }
   }
 
+  if (missingDirs.length > 0 && opts.verbose) {
+    console.log(`⚠️  未找到以下目录: ${missingDirs.join(', ')}`);
+  }
+
   // 收集文件
   const files = [];
   for (const dir of scanDirs) {
     walkFiles(dir.abs, opts.exts, files);
   }
+
+  console.log(`📂 扫描目录: ${scanDirs.map(d => d.rel).join(', ') || '(无)'}`);
 
   const report = {
     tool: 'audit-garble',
@@ -238,9 +248,13 @@ function main() {
 
   if (scanDirs.length === 0) {
     fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
-    console.error('❌ audit-garble: 未找到可扫描目录，请检查 --root 或 --dirs 参数。');
-    process.exit(2);
+    throw new UserError('乱码审计', '未找到可扫描目录', {
+      code: 'ERR_NO_SCAN_DIRS',
+      solution: '请检查 --root 或 --dirs 参数是否正确'
+    });
   }
+
+  console.log(`📄 发现 ${files.length} 个待扫描文件，开始乱码检测...`);
 
   for (const abs of files) {
     const rel = path.relative(root, abs).replace(/\\/g, '/');
@@ -290,9 +304,18 @@ function main() {
   }
 
   if (opts.enforce && report.garbledFiles > 0) {
-    console.error(`❌ audit-garble 阻断：发现 ${report.garbledFiles} 个疑似乱码文件，打包终止。`);
-    process.exit(1);
+    throw new UserError('乱码审计', `发现 ${report.garbledFiles} 个疑似乱码文件，打包终止`, {
+      code: 'ERR_GARBLE_BLOCKED',
+      details: report.items.slice(0, 10)
+    });
   }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('audit-garble.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '乱码审计' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

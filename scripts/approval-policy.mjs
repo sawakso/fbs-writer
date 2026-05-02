@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { UserError } from './lib/user-errors.mjs';
 export { evaluateCommandApproval } from './command-approval-policy.mjs';
 import { evaluateCommandApproval } from './command-approval-policy.mjs';
 
@@ -13,14 +14,19 @@ function parseArgs(argv) {
 }
 
 function main() {
+  console.log('[approval-policy] 开始评估命令审批策略...');
   const args = parseArgs(process.argv);
   const out = evaluateCommandApproval(args.command);
   if (args.json) console.log(JSON.stringify(out, null, 2));
-  else console.log(`[approval-policy] ${out.approval} (${out.riskLevel})`);
+  else console.log(`[approval-policy] 结果: ${out.approval} (${out.riskLevel})`);
   process.exit(out.approval === 'deny' ? 1 : 0);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('approval-policy.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '审批策略' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

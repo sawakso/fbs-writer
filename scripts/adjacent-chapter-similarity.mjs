@@ -7,6 +7,7 @@
  *
  * 退出码：0；相似度≥阈值时 stderr 警告。
  */
+import { UserError } from './lib/user-errors.mjs';
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -44,26 +45,55 @@ function parseArgs(argv) {
   return o;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (!args.fileA || !args.fileB) {
-    console.error("用法: node scripts/adjacent-chapter-similarity.mjs --file-a <md> --file-b <md> [--warn 0.35]");
-    process.exit(2);
+    throw new UserError('相邻章节相似度检测', '缺少必填参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --file-a <文件A> --file-b <文件B> [--warn 0.35]'
+    });
   }
+
+  if (!fs.existsSync(args.fileA)) {
+    throw new UserError('相邻章节相似度检测', `文件不存在: ${args.fileA}`, {
+      code: 'ERR_FILE_NOT_FOUND',
+      solution: '请确认 --file-a 指向有效的 Markdown 文件'
+    });
+  }
+
+  if (!fs.existsSync(args.fileB)) {
+    throw new UserError('相邻章节相似度检测', `文件不存在: ${args.fileB}`, {
+      code: 'ERR_FILE_NOT_FOUND',
+      solution: '请确认 --file-b 指向有效的 Markdown 文件'
+    });
+  }
+
+  console.log(`[adjacent-chapter-similarity] 开始计算相邻章节相似度...`);
+  console.log(`[adjacent-chapter-similarity] 文件A: ${path.basename(args.fileA)}`);
+  console.log(`[adjacent-chapter-similarity] 文件B: ${path.basename(args.fileB)}`);
+
   const ta = fs.readFileSync(args.fileA, "utf8");
   const tb = fs.readFileSync(args.fileB, "utf8");
   const ha = headings(ta);
   const hb = headings(tb);
   const sim = jaccard(ha, hb);
-  console.log(`[adjacent-chapter-similarity] Jaccard=${sim.toFixed(3)} (${path.basename(args.fileA)} vs ${path.basename(args.fileB)})`);
+  console.log(`[adjacent-chapter-similarity] Jaccard 相似度 = ${sim.toFixed(3)} (${path.basename(args.fileA)} vs ${path.basename(args.fileB)})`);
   if (sim >= args.warn) {
     console.warn(
-      `[adjacent-chapter-similarity] WARN: 相邻章标题词重叠较高，扩写时请核对「本章边界」避免论点重复。`
+      `[adjacent-chapter-similarity] WARN: 相邻章标题词重叠较高（${(sim * 100).toFixed(1)}% ≥ ${(args.warn * 100).toFixed(1)}%），扩写时请核对「本章边界」避免论点重复。`
     );
+  } else {
+    console.log(`[adjacent-chapter-similarity] 相似度在安全范围内（${(sim * 100).toFixed(1)}% < ${(args.warn * 100).toFixed(1)}%）`);
   }
+  console.log(`[adjacent-chapter-similarity] 检测完成！`);
   process.exit(0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('adjacent-chapter-similarity.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '相邻章节相似度检测' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

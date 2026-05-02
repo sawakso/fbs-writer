@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null, json: false, streakTarget: 3 };
@@ -65,20 +66,42 @@ export function runMidtermTargetStreakCheck({ bookRoot, streakTarget = 3 } = {})
   return { code: 0, message: 'ok', jsonPath, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/midterm-target-streak-check.mjs --book-root <本书根> [--streak-target 3] [--json]');
-    process.exit(2);
+    throw new UserError('中期目标连续性检查', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--streak-target 3] [--json]'
+    });
   }
+
+  console.log('🎯 正在检查目标连续性...');
+  console.log(`   目标: ${args.streakTarget} 周达标`);
+
   const out = runMidtermTargetStreakCheck(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else console.log(`[target-streak] streak=${out.totals.currentStreak}/${out.totals.streakTarget} qualified=${out.qualified}`);
-  process.exit(out.code);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    const streakBar = '●'.repeat(out.totals.currentStreak) + '○'.repeat(Math.max(0, out.totals.streakTarget - out.totals.currentStreak));
+    console.log(`✅ 连续性检查完成`);
+    console.log(`   当前连续: ${out.totals.currentStreak}/${out.totals.streakTarget} 周 [${streakBar}]`);
+    console.log(`   历史报告: ${out.totals.reports} 份`);
+    console.log(`   达标状态: ${out.qualified ? '✅ 已达标' : '❌ 未达标'}`);
+    console.log(`   JSON: ${out.jsonPath}`);
+  }
+
+  return out.code;
 }
 
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('midterm-target-streak-check.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '中期目标连续性检查' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

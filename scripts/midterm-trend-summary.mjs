@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null, json: false };
@@ -78,20 +79,42 @@ export function runMidtermTrendSummary({ bookRoot } = {}) {
   return { code: 0, message: 'ok', jsonPath, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/midterm-trend-summary.mjs --book-root <本书根> [--json]');
-    process.exit(2);
+    throw new UserError('中期趋势摘要', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--json]'
+    });
   }
+
+  console.log('📈 正在生成中期趋势摘要...');
+
   const out = runMidtermTrendSummary(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else console.log(`[midterm-trend] reports=${out.totals.reports} trigger=${out.metrics.trigger.current}`);
-  process.exit(out.code);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    const trendIcon = (t) => t === 'up' ? '📈' : t === 'down' ? '📉' : '➡️';
+    console.log(`✅ 趋势摘要生成完成`);
+    console.log(`   历史报告: ${out.totals.reports} 份`);
+    console.log(`   触发自动化率: ${out.metrics.trigger.current}% ${trendIcon(out.metrics.trigger.trend)}`);
+    console.log(`   时态可信率: ${out.metrics.temporal.current}% ${trendIcon(out.metrics.temporal.trend)}`);
+    console.log(`   证据完备率: ${out.metrics.evidence.current}% ${trendIcon(out.metrics.evidence.trend)}`);
+    console.log(`   JSON: ${out.jsonPath}`);
+  }
+
+  return out.code;
 }
 
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('midterm-trend-summary.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '中期趋势摘要' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

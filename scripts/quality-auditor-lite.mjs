@@ -15,6 +15,7 @@ import {
   resolveQualityReferenceFile,
   resolveScriptSkillRoot,
 } from './lib/quality-runtime.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 const SCRIPT_SKILL_ROOT = resolveScriptSkillRoot(import.meta.url);
 
@@ -288,7 +289,7 @@ function createRuleSet(skillRoot) {
       P2: {
         name: '对话代替转述',
         check(content) {
-          const quoteCount = countRegex(content, /[“”"「」『』]/g);
+          const quoteCount = countRegex(content, /["""「」『』]/g);
           const codeQuoteCount = (content.match(/`[^`]+`/g) || []).length;
           const ratio = (quoteCount + codeQuoteCount) / Math.max(content.replace(/\s+/g, '').length / 1000, 1);
           return { passed: ratio >= 0.6, ratio: Number(ratio.toFixed(2)) };
@@ -411,7 +412,7 @@ function createRuleSet(skillRoot) {
       B2_2: {
         name: '标点多样性',
         check(content) {
-          const punctuation = content.match(/[，。；：！？、“”"'（）【】《》……]/g) || [];
+          const punctuation = content.match(/[，。；：！？、"""（）【】《》……]/g) || [];
           const unique = new Set(punctuation);
           const density = unique.size / Math.max(content.replace(/\s+/g, '').length / 1000, 1);
           return { passed: density >= 1.0, density: Number(density.toFixed(2)), uniqueCount: unique.size };
@@ -582,13 +583,17 @@ export function summarizeResults(results, minScore) {
 function main() {
   const args = parseArgs(process.argv);
   const files = collectFiles(args);
+
   if (!files.length) {
-    console.error(
-      'Usage: node quality-auditor-lite.mjs <file.md> [--inputs a.md,b.md] [--glob "**/*.md"] [--book-root .] [--standalone] [--min-score 7.5] [--json]\n' +
-        '提示：含中文或特殊字符路径时优先使用 --inputs 或 --glob，避免裸位置参数在部分终端下解析异常。',
-    );
-    process.exit(2);
+    throw new UserError('质量审计', '未找到待审计的文件', {
+      code: 'ERR_NO_FILES',
+      solution: '请使用 --inputs <文件> 或 --glob <模式> 指定文件'
+    });
   }
+
+  console.log('🔍 开始质量审计...');
+  console.log(`📄 待审计文件: ${files.length} 个`);
+  console.log(`📊 最低分数要求: ${args.minScore}/10`);
 
   const shouldBootstrapBare = args.standalone || !fs.existsSync(path.join(args.bookRoot, '.fbs'));
   let runtime = null;
@@ -600,17 +605,21 @@ function main() {
   const thresholds = loadProfileThresholds(args.skillRoot);
   const results = [];
 
+  let processedCount = 0;
   for (const filePath of [...new Set(files.map((file) => path.resolve(file)))]) {
     if (!fs.existsSync(filePath)) {
       results.push({ filePath, error: 'file_not_found', threshold: { min: args.minScore, passed: false } });
       if (args.failFast) break;
       continue;
     }
+    processedCount++;
     const result = auditFile(filePath, { minScore: args.minScore, skillRoot: args.skillRoot, rules, thresholds });
     results.push(result);
     if (!args.quiet) printFileSummary(result);
     if (args.failFast && !result.threshold.passed) break;
   }
+
+  console.log(`\n📈 已处理 ${processedCount} 个文件，生成审计报告...`);
 
   const summary = summarizeResults(results, args.minScore);
   if (runtime || args.jsonOut) {
@@ -639,7 +648,17 @@ function main() {
   if (args.json) console.log(JSON.stringify(summary, null, 2));
   else console.log(`\n[quality] 汇总: total=${summary.total}, passed=${summary.passed}, failed=${summary.failed}, avg=${summary.avgScore}/10`);
 
-  process.exit(summary.failed > 0 ? 1 : 0);
+  if (summary.failed > 0) {
+    throw new UserError('质量审计', `${summary.failed}/${summary.total} 个文件未达到最低分数要求 (${args.minScore}/10)`, {
+      code: 'ERR_QUALITY_THRESHOLD',
+      details: {
+        avgScore: summary.avgScore,
+        failed: summary.failed,
+        total: summary.total,
+        minScore: args.minScore
+      }
+    });
+  }
 }
 
 const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

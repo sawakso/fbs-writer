@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 const DEFAULT_SCAN_DIR_CANDIDATES = [
   'references',
@@ -153,6 +154,16 @@ function buildSummary(report, outPath, top) {
 function main() {
   const opts = parseArgs(process.argv);
   const root = path.resolve(opts.root);
+
+  // 参数校验
+  if (!fs.existsSync(root)) {
+    throw new UserError('编码治理', `根目录不存在: ${root}`, {
+      code: 'ERR_DIR_NOT_FOUND',
+      solution: '请使用 --root <目录路径> 指定有效的目录'
+    });
+  }
+
+  console.log(`ℹ️  [编码治理] 开始扫描: ${root}`);
   const { existing, missing } = resolveScanDirs(root, opts.dirs);
   const files = [];
 
@@ -177,8 +188,10 @@ function main() {
   if (existing.length === 0) {
     fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
     console.log(JSON.stringify(buildSummary(report, outPath, opts.top), null, 2));
-    console.error('❌ 未找到可扫描目录，请检查 --root 或 --dirs 参数。');
-    process.exit(1);
+    throw new UserError('编码治理', '未找到可扫描目录', {
+      code: 'ERR_NO_SCAN_DIRS',
+      solution: '请检查 --root 或 --dirs 参数，确保指定的目录存在'
+    });
   }
 
   for (const abs of files) {
@@ -228,12 +241,25 @@ function main() {
   fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
 
   const summary = buildSummary(report, outPath, opts.top);
+  console.log('✅ [编码治理] 扫描完成:');
+  console.log(`   扫描文件: ${report.scannedFiles} 个`);
+  console.log(`   损坏文件: ${report.corruptedFiles} 个`);
+  console.log(`   自动修复: ${report.safeConvertedFiles} 个`);
   console.log(JSON.stringify(summary, null, 2));
 
   if (opts.enforce && report.corruptedFiles > 0) {
-    console.error(`❌ 编码治理阻断：发现 ${report.corruptedFiles} 个疑似损坏文件。`);
-    process.exit(1);
+    throw new UserError('编码治理', `编码治理阻断：发现 ${report.corruptedFiles} 个疑似损坏文件`, {
+      code: 'ERR_CORRUPTED_FILES',
+      solution: '请使用 --apply-safe 或 --apply-best 参数自动修复，或手动修复这些文件'
+    });
   }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('encoding-governance.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '编码治理' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

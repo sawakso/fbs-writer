@@ -10,6 +10,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null };
@@ -19,7 +20,7 @@ function parseArgs(argv) {
   return o;
 }
 
-function main() {
+async function main() {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     console.log(`
 chapter-scheduler-hint.mjs — 章节调度提示工具（只读）
@@ -45,7 +46,7 @@ chapter-scheduler-hint.mjs — 章节调度提示工具（只读）
 
 输出说明:
   ✓  已有稿件（无需派发）
-  ✅ 依赖已齐、本稿未写 — team-lead 可派发 Writer
+  ✅  依赖已齐、本稿未写 — team-lead 可派发 Writer
   ⏳ 等待依赖章节成稿
   ?  scan 结果未找到对应章节（检查 fileNameContains 是否匹配）
 
@@ -56,29 +57,38 @@ chapter-scheduler-hint.mjs — 章节调度提示工具（只读）
 
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error("用法: node scripts/chapter-scheduler-hint.mjs --book-root <本书根>\n       --help 查看前置依赖说明");
-    process.exit(2);
+    throw new UserError('章节调度提示', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>\n       --help 查看前置依赖说明'
+    });
   }
+
   const root = path.resolve(args.bookRoot);
   const fbs = path.join(root, ".fbs");
   const depsPath = path.join(fbs, "chapter-dependencies.json");
   const scanPath = path.join(fbs, "chapter-scan-result.json");
 
+  console.log('[chapter-scheduler-hint] 正在加载数据文件...');
   if (!fs.existsSync(depsPath)) {
-    console.error("缺少", depsPath);
-    process.exit(2);
+    throw new UserError('章节调度提示', `缺少依赖配置文件: ${depsPath}`, {
+      code: 'ERR_MISSING_FILE',
+      solution: '请先编辑 .fbs/chapter-dependencies.json 填写章节依赖图'
+    });
   }
   let scan = { chapters: [] };
   if (fs.existsSync(scanPath)) {
     scan = JSON.parse(fs.readFileSync(scanPath, "utf8"));
   } else {
-    console.error("请先运行: node scripts/sync-book-chapter-index.mjs --book-root", root, "--json-out .fbs/chapter-scan-result.json");
-    process.exit(2);
+    throw new UserError('章节调度提示', '缺少章节扫描结果文件', {
+      code: 'ERR_MISSING_SCAN_RESULT',
+      solution: `请先运行: node scripts/sync-book-chapter-index.mjs --book-root ${root} --json-out .fbs/chapter-scan-result.json`
+    });
   }
 
   const deps = JSON.parse(fs.readFileSync(depsPath, "utf8"));
   const list = Array.isArray(deps.chapters) ? deps.chapters : [];
   const byId = Object.fromEntries((scan.chapters || []).map((c) => [c.id, c]));
+  console.log(`[chapter-scheduler-hint] 加载完成: ${list.length} 个章节, ${Object.keys(byId).length} 个扫描记录`);
 
   /** 本稿缺失且全部依赖章已有文件 → team-lead 可派发 */
   function canDispatch(ch) {
@@ -124,4 +134,11 @@ chapter-scheduler-hint.mjs — 章节调度提示工具（只读）
   }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('chapter-scheduler-hint.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '章节调度提示' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

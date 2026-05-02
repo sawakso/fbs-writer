@@ -6,6 +6,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,14 +68,29 @@ const SECTIONS = [
 
 function main() {
   const args = parseArgs(process.argv);
-  if (!args.book || !args.skill) {
-    console.error(
-      "用法: node scripts/generate-book-context-index.mjs --book <本书根> --skill <技能包根> [--dry-run]"
-    );
-    process.exit(2);
+  if (!args.book) {
+    throw new UserError('生成书籍上下文索引', '缺少 --book 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book <书稿根目录>',
+    });
   }
+  if (!args.skill) {
+    throw new UserError('生成书籍上下文索引', '缺少 --skill 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --skill <技能包根目录>',
+    });
+  }
+
+  if (!fs.existsSync(args.book)) {
+    throw new UserError('生成书籍上下文索引', `书稿根目录不存在：${args.book}`, {
+      code: 'ENOENT',
+      solution: '请确认 --book 指向的目录存在',
+    });
+  }
+
   const skillRef = displaySkillRoot(args.skill);
   const outPath = path.join(args.book, "FBS_CONTEXT_INDEX.md");
+
   if (args.dryRun) {
     console.log("[dry-run] 本书根:", displaySkillRoot(args.book));
     console.log("[dry-run] 技能根:", skillRef);
@@ -85,6 +101,11 @@ function main() {
     }
     return;
   }
+
+  console.log(`[context-index] 书稿根: ${displaySkillRoot(args.book)}`);
+  console.log(`[context-index] 技能根: ${skillRef}`);
+  console.log('[context-index] 正在生成索引...');
+
   const lines = [];
   lines.push("# FBS 上下文按需 @ 索引");
   lines.push("");
@@ -113,7 +134,14 @@ function main() {
   lines.push("");
 
   fs.writeFileSync(outPath, lines.join("\n"), "utf8");
-  console.log("generate-book-context-index: 已写入", outPath);
+  console.log(`[context-index] 已写入 ${outPath}`);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('generate-book-context-index.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '生成书籍上下文索引' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

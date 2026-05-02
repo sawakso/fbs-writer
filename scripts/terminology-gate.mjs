@@ -15,6 +15,7 @@
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
+import { UserError } from './lib/user-errors.mjs';
 
 const HELP_TEXT = `术语门禁（terminology-gate）
 
@@ -125,16 +126,26 @@ function main() {
     console.log(HELP_TEXT);
     process.exit(0);
   }
-  if (!args.bookRoot || !args.chapterFile) {
-    console.error("用法: node scripts/terminology-gate.mjs --book-root <本书根> --chapter-file <章.md> [--strict]");
-    process.exit(2);
+  if (!args.bookRoot) {
+    throw new UserError('术语门禁', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+  if (!args.chapterFile) {
+    throw new UserError('术语门禁', '缺少 --chapter-file 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --chapter-file <章节文件路径>'
+    });
   }
 
   const root = path.resolve(args.bookRoot);
   const ch = path.resolve(args.chapterFile);
   if (!fs.existsSync(ch)) {
-    console.error(`✖ 章节不存在: ${ch}`);
-    process.exit(1);
+    throw new UserError('术语门禁', `章节文件不存在: ${ch}`, {
+      code: 'ERR_FILE_NOT_FOUND',
+      solution: '请检查 --chapter-file 参数指定的路径是否正确'
+    });
   }
 
   // ── BUG-004 修复：同时读取 GLOSSARY.md 与 术语锁定记录.md ──────────────────
@@ -147,18 +158,18 @@ function main() {
   for (const src of sources) {
     if (!fs.existsSync(src)) continue;
     const terms = parseForbidden(fs.readFileSync(src, "utf8"));
-    console.log(`terminology-gate: 从 ${path.basename(src)} 加载了 ${terms.length} 个禁用词`);
+    console.log(`ℹ️  [术语门禁] 从 ${path.basename(src)} 加载了 ${terms.length} 个禁用词`);
     allTerms.push(...terms);
   }
 
   if (!allTerms.length) {
-    console.log("terminology-gate: 无禁用词来源，跳过");
+    console.log("✅ [术语门禁] 无禁用词来源，跳过检查");
     process.exit(0);
   }
 
   // BUG-004-C 修复：全角/半角标准化后去重
   const forbidden = deduplicateWithNormalization(allTerms);
-  console.log(`terminology-gate: 去重后共 ${forbidden.length} 个禁用词（已标准化全角/半角/大小写）`);
+  console.log(`ℹ️  [术语门禁] 去重后共 ${forbidden.length} 个禁用词（已标准化全角/半角/大小写）`);
 
   const chapterText = fs.readFileSync(ch, "utf8");
 
@@ -175,28 +186,27 @@ function main() {
   }
 
   if (!violations.length) {
-    console.log("terminology-gate: ✅ 通过");
+    console.log("✅ [术语门禁] 术语一致性检查通过");
     process.exit(0);
   }
 
   // BUG-004-D 修复：中文友好提示 + 行号 + 修复步骤 + 帮助中心 URL（v4 N-3）
-  console.error("❌ 术语一致性检查失败：");
-  for (const v of violations) {
-    console.error(`   行 ${v.line}：发现禁用词「${v.term}」`);
-    console.error(`   建议替换为：（请查阅 .fbs/GLOSSARY.md 或 .fbs/术语锁定记录.md § 标准写法）`);
-  }
-  console.error("   修复方法：将上述禁用词替换为标准写法后重新运行");
-  console.error("   参考文档：.fbs/GLOSSARY.md § 禁用变体 / .fbs/术语锁定记录.md § 禁用变体");
-  console.error("   帮助中心：https://fbs-bookwriter.u3w.com/help/terminology-gate");
+  const violationDetails = violations.map(v => `  行 ${v.line}：发现禁用词「${v.term}」`).join('\n');
+  throw new UserError('术语门禁', `术语一致性检查失败，发现 ${violations.length} 处违规`, {
+    code: 'ERR_TERMINOLOGY_VIOLATIONS',
+    solution: '请查阅 .fbs/GLOSSARY.md 或 .fbs/术语锁定记录.md § 标准写法，将禁用词替换为标准写法后重新运行',
+    details: violationDetails,
+    reference: 'https://fbs-bookwriter.u3w.com/help/terminology-gate'
+  });
   process.exit(args.strict ? 1 : 0);
 }
 
-function isDirectRun() {
-  return !!process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
-}
-
-// NP0-04 ESM 入口守卫：防止被 import 调用时触发 main() 中的 process.exit
-if (isDirectRun()) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('terminology-gate.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '术语门禁' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
 

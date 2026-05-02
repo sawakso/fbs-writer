@@ -12,6 +12,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { UserError } from "./lib/user-errors.mjs";
 
 function parseArgs(argv) {
   const o = {
@@ -126,23 +127,32 @@ function hasS0TimestampEvidence(entries) {
 }
 
 function main() {
+  console.log("[enforce-search-policy] 开始检索策略门禁检查...");
   const args = parseArgs(process.argv);
+
   if (!args.bookRoot) {
-    console.error("用法: node scripts/enforce-search-policy.mjs --skill-root <技能根> --book-root <本书根> [--chapter-id ChNN|--chapter-file <文件>] [--verify-stages] [--verify-atomicity]");
-    process.exit(2);
+    throw new UserError('检索策略门禁', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
 
   const skillRoot = path.resolve(args.skillRoot || process.cwd());
   const bookRoot = path.resolve(args.bookRoot);
+  console.log(`[enforce-search-policy] 书稿目录: ${bookRoot}`);
+
   const policy = readPolicy(skillRoot) || {};
   const cfg = readProjectConfig(bookRoot);
 
   const ledgerPath = path.join(bookRoot, ".fbs", "search-ledger.jsonl");
   if (!fs.existsSync(ledgerPath)) {
-    console.error(`✖ 缺少检索账本: ${ledgerPath}`);
-    process.exit(1);
+    throw new UserError('检索策略门禁', `缺少检索账本: ${ledgerPath}`, {
+      code: 'ERR_MISSING_LEDGER',
+      solution: '请先执行检索并生成 search-ledger.jsonl'
+    });
   }
   const entries = parseJsonl(ledgerPath);
+  console.log(`[enforce-search-policy] 已加载 ${entries.length} 条检索记录`);
   const failures = [];
 
   if (!args.noVerifyS0Timestamp && !hasS0TimestampEvidence(entries)) {
@@ -150,6 +160,7 @@ function main() {
   }
 
   if (args.verifyStages || args.stageScope === "pre-s3") {
+    console.log(`[enforce-search-policy] 验证阶段覆盖 (${args.stageScope})...`);
     const need = requiredStages(policy, cfg);
     const seen = new Set(
       entries
@@ -162,6 +173,7 @@ function main() {
   }
 
   if (args.verifyAtomicity) {
+    console.log("[enforce-search-policy] 验证账本原子字段完整性...");
     const required = ["timestamp", "query", "url", "ok", "resultSummary", "chapterId", "depthLevel"];
     const bad = entries
       .filter((e) => e.kind === "search")
@@ -172,14 +184,15 @@ function main() {
     }
   }
 
+  const chapterId = args.chapterId || (args.chapterFile ? deriveChapterIdFromFile(args.chapterFile) : null);
   if (chapterId) {
-
+    console.log(`[enforce-search-policy] 验证章节 ${chapterId} 检索次数...`);
+    const searchEntries = entries;
     const minQ = resolveMinQueries(policy, cfg);
     const chapterEntries = searchEntries.filter((e) => {
       const c = String(e.chapterId || e.chapter || e.stageId || "").toLowerCase();
       return c === String(chapterId).toLowerCase();
     });
-
 
     if (chapterEntries.length < minQ) {
       failures.push(`${chapterId} 检索次数不足：${chapterEntries.length} < ${minQ}`);
@@ -193,13 +206,20 @@ function main() {
   }
 
   if (failures.length) {
-    console.error("enforce-search-policy: ✖ 未通过");
+    console.error("enforce-search-policy: 未通过检查");
     failures.forEach((f) => console.error(`  - ${f}`));
     process.exit(1);
   }
 
-  console.log("enforce-search-policy: ✅ 通过");
+  console.log("enforce-search-policy: 检查通过");
   process.exit(0);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('enforce-search-policy.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '检索策略门禁' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

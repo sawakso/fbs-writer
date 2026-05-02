@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "fs";
 import path from "path";
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = {
@@ -61,8 +62,32 @@ function countLinesFast(filePath, maxBytes = 2 * 1024 * 1024) {
 }
 
 function main() {
+  console.log('🔍 开始大文件检查...');
   const args = parseArgs(process.argv);
+
+  // 参数校验
+  if (!args.root) {
+    throw new UserError('大文件检查', '缺少 --root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --root <目录路径> [--top 30] [--min-kb 20] [--exts .md,.js]'
+    });
+  }
+
   const root = path.resolve(args.root);
+
+  // 检查目录是否存在
+  if (!fs.existsSync(root)) {
+    throw new UserError('大文件检查', `目录不存在: ${root}`, {
+      code: 'ENOENT',
+      solution: '请检查 --root 参数指定的目录路径是否正确'
+    });
+  }
+
+  console.log(`📂 扫描目录: ${root}`);
+  console.log(`📊 Top: ${args.top}, 最小大小: ${args.minKb}KB`);
+  console.log(`📄 扩展名: ${args.exts.join(', ')}`);
+  console.log('');
+
   const rows = [];
 
   const walk = (dir) => {
@@ -92,11 +117,28 @@ function main() {
     }
   };
 
+  console.log('⏳ 正在扫描文件...');
   walk(root);
+
   rows.sort((a, b) => b.kb - a.kb);
   const topRows = rows.slice(0, args.top);
 
-  console.log(JSON.stringify({ root, total: rows.length, top: topRows }, null, 2));
+  console.log(`\n📊 扫描完成: 共找到 ${rows.length} 个大文件\n`);
+  console.log('Top 文件:');
+  topRows.forEach((row, idx) => {
+    const lineInfo = row.lines === -1 ? '?' : row.lines;
+    console.log(`  ${idx + 1}. ${row.file} (${row.kb}KB, ${lineInfo} 行)`);
+  });
+
+  console.log(`\n✅ 大文件检查完成`);
+  return { root, total: rows.length, top: topRows };
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('large-file-inspector.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '大文件检查' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

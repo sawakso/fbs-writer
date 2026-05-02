@@ -24,6 +24,7 @@
 import path from "path";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
+import { UserError } from "./lib/user-errors.mjs";
 
 export function parseArgs(argv) {
   const o = {
@@ -87,16 +88,21 @@ function runNode(scriptPath, args) {
 
 function main() {
   const args = parseArgs(process.argv);
+  
   if (!args.bookRoot) {
-    console.error("用法: node scripts/s3-guard.mjs --skill-root <技能根> --book-root <本书根> [--mode parallel_writing|single_writer] [--verify-stages] [--no-heartbeat] [--no-truth] [--with-midterm-chain] [--midterm-chain-enforce] [--midterm-days <days>]");
-    process.exit(2);
+    throw new UserError('S3阶段守卫', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> 指定书稿目录'
+    });
   }
 
   const skillRoot = path.resolve(args.skillRoot || process.cwd());
   const bookRoot = path.resolve(args.bookRoot);
   const scriptsRoot = path.resolve(skillRoot, "scripts");
 
-  console.log("[S3-Guard] 1/3 preflight: s3-start-gate");
+  console.log("[S3-Guard] 🚀 开始S3守卫检查...");
+  
+  console.log("[S3-Guard] 1/5 前置检查: s3-start-gate");
   const gateArgs = ["--skill-root", skillRoot, "--book-root", bookRoot, "--mode", args.mode];
   if (args.verifyStages) gateArgs.push("--verify-stages");
   if (args.noAuditTemporal) gateArgs.push("--no-audit-temporal");
@@ -109,48 +115,55 @@ function main() {
   if (gateCode !== 0) process.exit(gateCode);
 
   if (args.withHeartbeat) {
-    console.log("[S3-Guard] 2/3 health: heartbeat-monitor");
+    console.log("[S3-Guard] 2/5 健康检查: heartbeat-monitor");
     const hbArgs = ["--book-root", bookRoot, "--fail-on-critical"];
     if (args.warnMs) hbArgs.push("--warn-ms", args.warnMs);
     if (args.criticalMs) hbArgs.push("--critical-ms", args.criticalMs);
     const hbCode = runNode(path.join(scriptsRoot, "heartbeat-monitor.mjs"), hbArgs);
     if (hbCode !== 0) process.exit(hbCode);
   } else {
-    console.log("[S3-Guard] 2/3 skipped: heartbeat-monitor");
+    console.log("[S3-Guard] 2/5 跳过: heartbeat-monitor");
   }
 
   if (args.withTruth) {
-    console.log("[S3-Guard] 3/3 truth: verify-chapter-status-truth");
+    console.log("[S3-Guard] 3/5 真值验证: verify-chapter-status-truth");
     const truthCode = runNode(path.join(scriptsRoot, "verify-chapter-status-truth.mjs"), ["--book-root", bookRoot, "--strict"]);
     if (truthCode !== 0) process.exit(truthCode);
   } else {
-    console.log("[S3-Guard] 3/3 skipped: verify-chapter-status-truth");
+    console.log("[S3-Guard] 3/5 跳过: verify-chapter-status-truth");
   }
 
   if (args.withBrokenLinksAudit) {
-    console.log("[S3-Guard] 4/4 docs: audit-broken-links");
+    console.log("[S3-Guard] 4/5 断链审计: audit-broken-links");
     const linkArgs = ["--root", skillRoot, "--channel", args.brokenLinksChannel];
     if (args.brokenLinksEnforce) linkArgs.push("--enforce");
     const linkCode = runNode(path.join(scriptsRoot, "audit-broken-links.mjs"), linkArgs);
     if (linkCode !== 0) process.exit(linkCode);
   } else {
-    console.log("[S3-Guard] 4/4 skipped: audit-broken-links");
+    console.log("[S3-Guard] 4/5 跳过: audit-broken-links");
   }
 
   if (args.withMidtermChain) {
-    console.log("[S3-Guard] 5/5 midterm: midterm-execution-chain");
+    console.log("[S3-Guard] 5/5 中期执行链: midterm-execution-chain");
     const midtermArgs = ["--book-root", bookRoot, "--skill-root", skillRoot, "--days", String(args.midtermDays), "--json"];
     if (args.midtermChainEnforce) midtermArgs.push("--enforce");
     const midtermCode = runNode(path.join(scriptsRoot, "midterm-execution-chain.mjs"), midtermArgs);
     if (midtermCode !== 0) process.exit(midtermCode);
   } else {
-    console.log("[S3-Guard] 5/5 skipped: midterm-execution-chain");
+    console.log("[S3-Guard] 5/5 跳过: midterm-execution-chain");
   }
 
-  console.log("[S3-Guard] ✅ all checks passed");
+  console.log("[S3-Guard] ✅ 所有检查通过");
 }
 
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('s3-guard.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: 'S3阶段守卫' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
+
+console.log('✅ 改造完成: s3-guard.mjs');

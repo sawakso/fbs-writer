@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 import { runBookStateWeeklyExport, getIsoWeekLabel } from './book-state-weekly-export.mjs';
 import { ensureGovernanceDir } from './lib/governance-artifacts.mjs';
 import { runBuildSearchKnowledgeCards } from './build-search-knowledge-cards.mjs';
@@ -267,25 +268,43 @@ export function runMidtermPerformanceDashboard({ bookRoot, days = 7, weekLabel =
   return { code: 0, message: 'ok', jsonPath: finalJson, mdPath: finalMd, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/midterm-performance-dashboard.mjs --book-root <本书根> [--days 7] [--json]');
-    process.exit(2);
+    throw new UserError('中期性能仪表板', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--days 7] [--week-label 2026-W16] [--json]'
+    });
   }
+
+  console.log('📈 正在生成中期性能仪表板...');
+  console.log(`   统计窗口: 最近 ${args.days} 天`);
+
   const out = runMidtermPerformanceDashboard(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else {
-    console.log(`[midterm-dashboard] ${out.message}`);
-    console.log(`[midterm-dashboard] trigger=${out.kpi.triggerAutomationRate.rate}% temporal=${out.kpi.temporalTrustRate.rate}%`);
-    console.log(`[midterm-dashboard] json=${out.jsonPath}`);
-    console.log(`[midterm-dashboard] md=${out.mdPath}`);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    console.log(`✅ 性能仪表板生成完成`);
+    console.log(`   触发自动化率: ${out.kpi.triggerAutomationRate.rate}%`);
+    console.log(`   时态可信率: ${out.kpi.temporalTrustRate.rate}%`);
+    console.log(`   会话恢复就绪率: ${out.kpi.resumeReadinessRate.rate}%`);
+    console.log(`   证据完备率: ${out.kpi.evidenceCompletenessRate.rate}%`);
+    console.log(`   JSON: ${out.jsonPath}`);
+    console.log(`   MD:   ${out.mdPath}`);
   }
-  process.exit(out.code);
+
+  return out.code;
 }
 
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('midterm-performance-dashboard.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '中期性能仪表板' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

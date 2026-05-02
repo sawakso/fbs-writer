@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { appendBookStateEvent } from "./lib/book-state-db.mjs";
+import { UserError } from "./lib/user-errors.mjs";
 
 const VALID_STATES = new Set(["draft", "candidate", "release", "archived"]);
 const ALLOWED_TRANSITIONS = {
@@ -126,23 +127,35 @@ export function runFinalDraftStateMachine({
   force = false,
 }) {
   if (!bookRoot) {
-    return { code: 2, message: "missing --book-root" };
+    throw new UserError('定稿状态机', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
   const state = readState(bookRoot);
   if (action === "status") {
     return { code: 0, message: "ok", state };
   }
   if (action !== "transition") {
-    return { code: 2, message: `unsupported action: ${action}` };
+    throw new UserError('定稿状态机', `不支持的操作: ${action}`, {
+      code: 'ERR_INVALID_ACTION',
+      solution: '请使用 --action status 或 --action transition'
+    });
   }
   const target = String(to || "").trim().toLowerCase();
   if (!target) {
-    return { code: 2, message: "missing --to for transition" };
+    throw new UserError('定稿状态机', '缺少 --to 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --to <目标状态> 指定转换目标状态'
+    });
   }
   try {
     ensureTransitionAllowed(state.currentState, target, !!force);
   } catch (error) {
-    return { code: 2, message: error.message, state };
+    throw new UserError('定稿状态机', error.message, {
+      code: 'ERR_TRANSITION_NOT_ALLOWED',
+      solution: `当前状态: ${state.currentState}，允许转换到: ${[...ALLOWED_TRANSITIONS[state.currentState] || []].join(', ') || '无'}`
+    });
   }
 
   const now = new Date().toISOString();
@@ -198,22 +211,40 @@ export function runFinalDraftStateMachine({
 
 function main() {
   const args = parseArgs(process.argv);
+  
+  if (!args.json) {
+    console.log('[定稿状态机] 开始执行...');
+  }
+  
   const out = runFinalDraftStateMachine(args);
+  
   if (args.json) {
     console.log(JSON.stringify(out, null, 2));
   } else {
-    console.log(`[final-draft-state] ${out.message}`);
+    console.log(`[定稿状态机] ${out.message}`);
     if (out.state?.currentState) {
-      console.log(`[final-draft-state] current=${out.state.currentState}`);
+      console.log(`[定稿状态机] 当前状态: ${out.state.currentState}`);
     }
     if (out.statePath) {
-      console.log(`[final-draft-state] statePath=${out.statePath}`);
+      console.log(`[定稿状态机] 状态文件: ${out.statePath}`);
     }
   }
+  
+  if (!args.json) {
+    console.log('[定稿状态机] ✅ 执行完成');
+  }
+  
   process.exit(out.code);
 }
 
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('final-draft-state-machine.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '定稿状态机' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
+
+console.log('✅ 改造完成: final-draft-state-machine.mjs');

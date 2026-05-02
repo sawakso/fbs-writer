@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const out = {
@@ -50,7 +51,12 @@ export function runPluginRoutingKpi({
   minSamples = 5,
   jsonOut = null,
 } = {}) {
-  if (!bookRoot) return { code: 2, message: 'missing --book-root' };
+  if (!bookRoot) {
+    throw new UserError('插件路由KPI', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>',
+    });
+  }
   const root = path.resolve(bookRoot);
   const logPath = path.join(root, '.fbs', 'governance', 'intake-routing-kpi.jsonl');
   const rows = readJsonl(logPath).slice(-Math.max(1, Number(window) || 50));
@@ -81,15 +87,33 @@ export function runPluginRoutingKpi({
   return { code, reportPath: outPath, ...payload };
 }
 
-function main() {
+async function main() {
+  console.log('📊 插件路由KPI分析启动...');
   const args = parseArgs(process.argv);
+  if (!args.bookRoot) {
+    throw new UserError('插件路由KPI', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>',
+    });
+  }
   const out = runPluginRoutingKpi(args);
   console.log(`[plugin-routing-kpi] status=${out.status} firstRouteRate=${out.metrics?.firstRouteRate ?? 0}%`);
   console.log(`[plugin-routing-kpi] report=${out.reportPath}`);
+  if (out.status === 'passed') {
+    console.log('✅ 路由KPI达标');
+  } else if (out.status === 'failed') {
+    console.log('❌ 路由KPI未达标，首路由有效率低于阈值');
+  } else {
+    console.log('⏭️  样本不足，跳过KPI判定');
+  }
   process.exit(out.code);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('plugin-routing-kpi.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '插件路由KPI' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

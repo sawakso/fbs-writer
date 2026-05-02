@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 import { runPolishGate } from './polish-gate.mjs';
 
 function parseArgs(argv) {
@@ -126,23 +127,40 @@ export function runFbsQualityFull({ bookRoot, jsonOut = null, enforce = false } 
 
 function main() {
   const args = parseArgs(process.argv);
+  if (!args.bookRoot) {
+    throw new UserError('FBS 完整质量检查', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+
+  console.log('[fbs-quality-full] 开始全量质量检查...');
   const result = runFbsQualityFull(args);
+
   if (!args.quiet) {
     if (result.reportPath) {
-      console.log(`[fbs-quality-full] report -> ${result.reportPath}`);
+      console.log(`[fbs-quality-full] 报告已生成: ${result.reportPath}`);
     }
     if (result.bookQualityConclusion) {
       const c = result.bookQualityConclusion;
-      console.log(`[fbs-quality-full] overall=${c.overallStatus}`);
-      console.log(`[fbs-quality-full] next=${c.nextBestAction}`);
+      const icon = c.overallStatus === 'pass' ? '✅' : c.overallStatus === 'warn' ? '⚠️' : '❌';
+      console.log(`[fbs-quality-full] ${icon} 整体状态: ${c.overallStatus}`);
+      console.log(`[fbs-quality-full] 下一步: ${c.nextBestAction}`);
     } else {
       console.log(`[fbs-quality-full] ${result.message}`);
     }
   }
+
+  console.log('✅ 改造完成: fbs-quality-full.mjs');
   process.exit(result.code);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]).endsWith('fbs-quality-full.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: 'FBS 完整质量检查' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
 

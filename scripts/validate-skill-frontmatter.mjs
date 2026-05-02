@@ -6,6 +6,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { validateSkillFrontmatter } from './lib/skill-frontmatter.mjs';
+import { UserError, tryMain } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,19 +23,21 @@ function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
     console.log('用法: node scripts/validate-skill-frontmatter.mjs [--skill-root <技能根>]');
-    process.exit(0);
+    return;
   }
 
+  console.log("开始校验 SKILL.md frontmatter...");
   const { ok, errors } = validateSkillFrontmatter(args.skillRoot);
   if (ok) {
-    console.log('validate-skill-frontmatter: ✅ SKILL.md frontmatter 键白名单通过');
-    process.exit(0);
+    console.log('✅ SKILL.md frontmatter 键白名单通过');
+    return;
   }
-  console.error('validate-skill-frontmatter: ❌ 校验失败');
-  for (const e of errors) console.error(`  - ${e}`);
-  process.exit(1);
+  throw new UserError('校验SKILL frontmatter', `校验失败，发现 ${errors.length} 个问题`, {
+    code: 'ERR_INVALID_ARG_TYPE',
+    solution: '请检查 SKILL.md 的 frontmatter 键是否在白名单内：\n  - ' + errors.join('\n  - ')
+  });
 }
 
 if (process.argv[1] && process.argv[1].includes('validate-skill-frontmatter')) {
-  main();
+  tryMain(main, { friendlyName: '校验SKILL frontmatter' });
 }

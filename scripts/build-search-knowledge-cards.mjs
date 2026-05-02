@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null, json: false, minSummaryLen: 4 };
@@ -82,7 +83,18 @@ export function runBuildSearchKnowledgeCards({ bookRoot, minSummaryLen = 4 } = {
   const root = path.resolve(bookRoot || process.cwd());
   const fbs = path.join(root, '.fbs');
   const ledgerPath = path.join(fbs, 'search-ledger.jsonl');
+
+  if (!fs.existsSync(ledgerPath)) {
+    throw new UserError('构建搜索知识卡片', `搜索台账文件不存在：${ledgerPath}`, {
+      code: 'ENOENT',
+      solution: '请确认 .fbs/search-ledger.jsonl 存在，或先运行搜索相关流程生成台账',
+    });
+  }
+
+  console.log(`[knowledge-cards] 正在读取台账: ${ledgerPath}`);
   const entries = parseJsonl(ledgerPath).filter((e) => e.kind === 'search' || e.kind === 'search_preflight' || !e.kind);
+  console.log(`[knowledge-cards] 读取 ${entries.length} 条记录`);
+
   const cards = [];
   const seen = new Set();
   for (const e of entries) {
@@ -92,6 +104,9 @@ export function runBuildSearchKnowledgeCards({ bookRoot, minSummaryLen = 4 } = {
     seen.add(card.cardId);
     cards.push(card);
   }
+
+  console.log(`[knowledge-cards] 生成 ${cards.length} 张卡片（去重后）`);
+
   const governanceDir = path.join(fbs, 'governance');
   fs.mkdirSync(governanceDir, { recursive: true });
   const payload = {
@@ -110,26 +125,37 @@ export function runBuildSearchKnowledgeCards({ bookRoot, minSummaryLen = 4 } = {
   const mdPath = path.join(governanceDir, 'search-knowledge-cards.md');
   fs.writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   writeMd(mdPath, payload);
+
+  console.log(`[knowledge-cards] JSON: ${jsonPath}`);
+  console.log(`[knowledge-cards] MD: ${mdPath}`);
+
   return { code: 0, message: 'ok', jsonPath, mdPath, ...payload };
 }
 
 function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error('用法: node scripts/build-search-knowledge-cards.mjs --book-root <本书根> [--json]');
-    process.exit(2);
+    throw new UserError('构建搜索知识卡片', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>',
+    });
   }
+
+  console.log(`[knowledge-cards] 书稿根目录: ${args.bookRoot}`);
+
   const out = runBuildSearchKnowledgeCards(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else {
-    console.log(`[knowledge-cards] ${out.message}`);
-    console.log(`[knowledge-cards] cards=${out.totals.all} json=${out.jsonPath}`);
-  }
-  process.exit(out.code);
+
+  if (args.json) return out;
+
+  console.log(`[knowledge-cards] cards=${out.totals.all} highRisk=${out.totals.highRisk}`);
+  return out;
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('build-search-knowledge-cards.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '构建搜索知识卡片' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

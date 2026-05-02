@@ -2,6 +2,7 @@
 import fs from "fs";
 import path from "path";
 import { globSync } from "glob";
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const out = {
@@ -237,22 +238,38 @@ export function runMaterialMarkerGovernor({ bookRoot, fix = false } = {}) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
+  if (!args.bookRoot) {
+    throw new UserError('素材标记治理器', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+
   const out = runMaterialMarkerGovernor(args);
   if (out.code !== 0) {
-    console.error(`[material-marker-governor] ${out.message}`);
-    process.exit(out.code);
+    throw new UserError('素材标记治理器', out.message, {
+      code: 'ERR_GOVERNOR_FAILED',
+      solution: '请检查 --book-root 参数是否正确，或查看详细错误信息'
+    });
   }
   if (args.json) {
     console.log(JSON.stringify(out, null, 2));
   } else {
-    console.log(`[material-marker-governor] ${out.message}`);
+    console.log(`✅ [素材标记治理器] ${out.message}`);
     console.log(
-      `[material-marker-governor] files=${out.totals.files} staleMat=${out.totals.staleMat} discarded=${out.totals.discardedTag} changed=${out.totals.filesChanged}`,
+      `   文件数: ${out.totals.files} | 待核实: ${out.totals.staleMat} | 已丢弃: ${out.totals.discardedTag} | 已修改: ${out.totals.filesChanged}`,
     );
   }
   process.exit(out.code);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]).endsWith("material-marker-governor.mjs")) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('material-marker-governor.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '素材标记治理器' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

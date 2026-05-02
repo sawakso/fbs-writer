@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureGovernanceDir } from './lib/governance-artifacts.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = {
@@ -91,11 +92,14 @@ export function runNormalizeGovernanceArtifacts({
   return out;
 }
 
-function main() {
+async function main() {
+  console.log('🔧 规范化治理产物启动...');
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error('用法: node scripts/normalize-governance-artifacts.mjs --book-root <本书根> [--dry-run] [--prune-duplicates] [--prune-on-exists] [--json]');
-    process.exit(2);
+    throw new UserError('规范化治理产物', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>',
+    });
   }
   const out = runNormalizeGovernanceArtifacts(args);
   if (args.json) console.log(JSON.stringify(out, null, 2));
@@ -104,12 +108,21 @@ function main() {
     console.log(`- found=${out.found} moved=${out.movedCount} pruned=${out.prunedCount} skipped=${out.skippedCount}`);
     console.log(`- reportsDir=${out.reportsDir}`);
     console.log(`- governanceDir=${out.governanceDir}`);
+    if (out.found === 0) {
+      console.log('✅ 无需迁移，治理产物已是规范状态');
+    } else {
+      console.log(`✅ 迁移完成：移动 ${out.movedCount} 个，清理 ${out.prunedCount} 个`);
+    }
   }
   process.exit(0);
 }
 
 const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '规范化治理产物' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

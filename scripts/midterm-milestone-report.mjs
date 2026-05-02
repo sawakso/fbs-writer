@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 import { getIsoWeekLabel } from './book-state-weekly-export.mjs';
 import { runMidtermTrendSummary } from './midterm-trend-summary.mjs';
 import { runRetroMappingMatrix } from './retro-mapping-matrix.mjs';
@@ -80,20 +81,39 @@ export function runMidtermMilestoneReport({ bookRoot, weekLabel = null } = {}) {
   return { code: 0, message: 'ok', jsonPath, mdPath, ...payload };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/midterm-milestone-report.mjs --book-root <本书根> [--week-label 2026-W16] [--json]');
-    process.exit(2);
+    throw new UserError('中期里程碑报告', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--week-label 2026-W16] [--json]'
+    });
   }
+
+  console.log('🏆 正在生成中期里程碑报告...');
   const out = runMidtermMilestoneReport(args);
-  if (args.json) console.log(JSON.stringify(out, null, 2));
-  else console.log(`[milestone] status=${out.status} json=${out.jsonPath}`);
-  process.exit(out.code);
+
+  if (args.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    console.log(`✅ 里程碑报告生成完成`);
+    console.log(`   状态: ${out.status.toUpperCase()}`);
+    console.log(`   目标连续: ${out.summary.targetStreak} 周`);
+    console.log(`   知识复用率: ${out.summary.knowledgeReuseRate}%`);
+    console.log(`   JSON: ${out.jsonPath}`);
+  }
+
+  return out.code;
 }
 
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('midterm-milestone-report.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '中期里程碑报告' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

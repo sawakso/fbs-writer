@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import "./lib/suppress-node-sqlite-experimental-warning.mjs";
+import { UserError } from './lib/user-errors.mjs';
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -49,6 +50,7 @@ function writeFileSafe(filePath, content) {
 
 export function runBookStateWeeklyExport({ bookRoot, days = 7, weekLabel = null } = {}) {
   const root = path.resolve(bookRoot || process.cwd());
+  console.log(`[book-state-weekly-export] 正在导出书籍状态周报，书稿根目录: ${root}`);
   const fbsDir = path.join(root, ".fbs");
   fs.mkdirSync(fbsDir, { recursive: true });
   const dbPath = path.join(fbsDir, "book-state.db");
@@ -70,6 +72,7 @@ export function runBookStateWeeklyExport({ bookRoot, days = 7, weekLabel = null 
     latestFailures: [],
   };
 
+  console.log(`[book-state-weekly-export] 正在查询数据库...`);
   const db = openDbIfExists(dbPath);
   if (db) {
     try {
@@ -101,6 +104,7 @@ export function runBookStateWeeklyExport({ bookRoot, days = 7, weekLabel = null 
     }
   }
 
+  console.log(`[book-state-weekly-export] 正在生成报告文件...`);
   const week = weekLabel || getIsoWeekLabel(new Date());
   const reportDir = path.join(fbsDir, "reports");
   const jsonPath = path.join(reportDir, `book-state-weekly-summary-${week}.json`);
@@ -140,12 +144,15 @@ export function runBookStateWeeklyExport({ bookRoot, days = 7, weekLabel = null 
   return { code: 0, message: "ok", jsonPath, mdPath, ...result };
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   if (!args.bookRoot) {
-    console.error("用法: node scripts/book-state-weekly-export.mjs --book-root <本书根> [--days 7] [--json]");
-    process.exit(2);
+    throw new UserError('书籍状态周报导出', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录> [--days 7] [--json]'
+    });
   }
+  console.log(`[book-state-weekly-export] 开始执行周报导出任务...`);
   const out = runBookStateWeeklyExport(args);
   if (args.json) {
     console.log(JSON.stringify(out, null, 2));
@@ -155,10 +162,15 @@ function main() {
     console.log(`[book-state-weekly-export] json=${out.jsonPath}`);
     console.log(`[book-state-weekly-export] md=${out.mdPath}`);
   }
+  console.log(`[book-state-weekly-export] 周报导出完成！`);
   process.exit(out.code);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('book-state-weekly-export.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '书籍状态周报导出' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }

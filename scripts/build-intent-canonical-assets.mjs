@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadIntentCanonical } from './lib/intent-canonical.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -31,7 +32,20 @@ function buildMarkdown(canonical) {
 }
 
 function main() {
-  const canonical = loadIntentCanonical();
+  console.log('[build-intent-canonical] 正在加载意图规范数据...');
+
+  let canonical;
+  try {
+    canonical = loadIntentCanonical();
+  } catch (err) {
+    throw new UserError('构建意图规范资源', `加载意图规范失败：${err.message}`, {
+      code: err.code || 'MODULE_NOT_FOUND',
+      solution: '请检查 lib/intent-canonical.mjs 及其依赖是否存在',
+    });
+  }
+
+  console.log(`[build-intent-canonical] 加载 ${canonical.intents.length} 个意图`);
+
   const generatedDir = path.join(ROOT, 'scripts', 'generated');
   const refDir = path.join(ROOT, 'references', '01-core');
   ensureDir(generatedDir);
@@ -39,15 +53,27 @@ function main() {
 
   const jsonOut = path.join(generatedDir, 'intent-canonical.snapshot.json');
   const mdOut = path.join(refDir, 'intent-canonical.generated.md');
+
+  console.log('[build-intent-canonical] 正在生成快照文件...');
   fs.writeFileSync(jsonOut, JSON.stringify(canonical, null, 2) + '\n', 'utf8');
   fs.writeFileSync(mdOut, buildMarkdown(canonical) + '\n', 'utf8');
 
-  console.log(JSON.stringify({
+  console.log(`[build-intent-canonical] JSON: ${jsonOut}`);
+  console.log(`[build-intent-canonical] MD: ${mdOut}`);
+
+  return {
     ok: true,
     intentCount: canonical.intents.length,
     jsonOut,
     mdOut,
-  }, null, 2));
+  };
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('build-intent-canonical-assets.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '构建意图规范资源' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

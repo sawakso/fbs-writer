@@ -11,6 +11,7 @@
  *   node scripts/heartbeat-monitor.mjs --book-root <本书根>
  *   node scripts/heartbeat-monitor.mjs --book-root <本书根> --emit-actions
  */
+import { UserError } from './lib/user-errors.mjs';
 import fs from "fs";
 import path from "path";
 
@@ -68,7 +69,7 @@ function classify(ageMs, cfg) {
   return "OK";
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
 
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -110,23 +111,30 @@ heartbeat-monitor.mjs — 多 Writer 心跳巡检工具
   }
 
   if (!args.bookRoot) {
-    console.error("用法: node scripts/heartbeat-monitor.mjs --book-root <本书根> [--emit-actions]\n       --help 查看完整说明（含适用范围）");
-    process.exit(2);
+    throw new UserError('心跳监控', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <本书根> [--emit-actions]，使用 --help 查看完整说明'
+    });
   }
 
+  console.log(`[heartbeat-monitor] 开始心跳巡检...`);
   const bookRoot = path.resolve(args.bookRoot);
   const hbPath = path.join(bookRoot, ".fbs", "member-heartbeats.json");
   if (!fs.existsSync(hbPath)) {
-    console.error(`heartbeat-monitor: 文件不存在 ${hbPath}`);
-    process.exit(2);
+    throw new UserError('心跳监控', `心跳文件不存在: ${hbPath}`, {
+      code: 'ERR_FILE_NOT_FOUND',
+      solution: '请确认 .fbs/member-heartbeats.json 已存在（由各 Writer 定期更新）'
+    });
   }
 
   let j;
   try {
     j = JSON.parse(fs.readFileSync(hbPath, "utf8"));
   } catch (e) {
-    console.error(`heartbeat-monitor: JSON 解析失败 ${hbPath}: ${e.message}`);
-    process.exit(2);
+    throw new UserError('心跳监控', `JSON 解析失败 ${hbPath}: ${e.message}`, {
+      code: 'ERR_JSON_PARSE',
+      solution: '请检查 member-heartbeats.json 文件格式是否正确'
+    });
   }
 
   const now = Date.now();
@@ -141,8 +149,9 @@ heartbeat-monitor.mjs — 多 Writer 心跳巡检工具
   let shutdownCount = 0;
   const actions = [];
 
-  console.log(`heartbeat-monitor: ${bookRoot}`);
-  console.log(`阈值: WARN>=${args.warnMs}ms, PING>=${args.pingAfterMs}ms, SHUTDOWN>=${args.shutdownAfterMs}ms, CRITICAL>=${args.criticalAfterMs}ms`);
+  console.log(`[heartbeat-monitor] 巡检目标: ${bookRoot}`);
+  console.log(`[heartbeat-monitor] 阈值配置: WARN>=${args.warnMs}ms, PING>=${args.pingAfterMs}ms, SHUTDOWN>=${args.shutdownAfterMs}ms, CRITICAL>=${args.criticalAfterMs}ms`);
+  console.log(`[heartbeat-monitor] 共发现 ${ids.length} 个成员，开始逐个检查...`);
 
   for (const id of ids) {
     const row = members[id] || {};
@@ -201,6 +210,7 @@ heartbeat-monitor.mjs — 多 Writer 心跳巡检工具
   }
 
   if (args.emitActions) {
+    console.log(`[heartbeat-monitor] 正在输出动作建议...`);
     const outPath = path.join(bookRoot, ".fbs", "heartbeat-actions.json");
     const payload = {
       generatedAt: new Date(now).toISOString(),
@@ -214,12 +224,21 @@ heartbeat-monitor.mjs — 多 Writer 心跳巡检工具
       actions,
     };
     fs.writeFileSync(outPath, JSON.stringify(payload, null, 2), "utf8");
-    console.log(`heartbeat-monitor: 已输出动作建议 ${outPath}`);
+    console.log(`[heartbeat-monitor] 已输出动作建议 ${outPath}`);
   }
+
+  console.log(`[heartbeat-monitor] 心跳巡检完成。CRITICAL=${criticalCount}, SHUTDOWN=${shutdownCount}`);
 
   if (criticalCount > 0 && args.failOnCritical) process.exit(1);
   if (shutdownCount > 0 && args.failOnShutdown) process.exit(1);
   process.exit(0);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('heartbeat-monitor.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '心跳监控' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

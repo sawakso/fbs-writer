@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { UserError } from './lib/user-errors.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,20 +29,35 @@ function latestTraceFile(auditDir) {
 
 function main() {
   const args = parseArgs(process.argv);
-  if (args.help || !args.bookRoot) {
+
+  if (args.help) {
     console.log(`用法: node scripts/evolution-propose.mjs --book-root <书稿根> [--lines 40]
 
 读取 .fbs/audit/trace-*.jsonl 末行，写出 .fbs/evolution/proposal-<timestamp>.md 草稿`);
-    process.exit(args.help ? 0 : 2);
+    return;
+  }
+
+  if (!args.bookRoot) {
+    throw new UserError('进化提案', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
 
   const bookRoot = path.resolve(args.bookRoot);
+  console.log(`📝 开始生成进化提案...`);
+  console.log(`  书稿根目录: ${bookRoot}`);
+
   const auditDir = path.join(bookRoot, '.fbs', 'audit');
   const tf = latestTraceFile(auditDir);
   if (!tf) {
-    console.error('未找到轨迹文件，请先运行 intake-router / session-exit / record-search-preflight');
-    process.exit(1);
+    throw new UserError('进化提案', '未找到轨迹文件', {
+      code: 'ENOENT',
+      solution: '请先运行 intake-router / session-exit / record-search-preflight 生成轨迹文件'
+    });
   }
+  console.log(`  ✓ 找到轨迹文件: ${tf}`);
+  console.log(`  ✓ 采样行数: ${args.lines}`);
 
   const raw = fs.readFileSync(tf, 'utf8').trim().split('\n').filter(Boolean);
   const tail = raw.slice(-args.lines);
@@ -71,7 +87,14 @@ function main() {
   ].join('\n');
 
   fs.writeFileSync(out, body, 'utf8');
-  console.log(`已写出: ${out}`);
+  console.log(`✅ 已写出进化提案: ${out}`);
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('evolution-propose.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '进化提案' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

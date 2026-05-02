@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { UserError } from './lib/user-errors.mjs';
 
 const RISK_RULES = [
   { id: 'self-harm', level: 'high', re: /(自杀|自残|kill myself|suicide)/i },
@@ -60,6 +61,7 @@ export function runContentSafetyPrecheck({ inputFile = null, text = '', jsonOut 
 }
 
 function main() {
+  console.log('[content-safety-precheck] 开始内容安全预检...');
   const args = parseArgs(process.argv);
   const loadedText = loadText(args);
   const out = runContentSafetyPrecheck({
@@ -68,11 +70,20 @@ function main() {
     jsonOut: args.jsonOut,
     enforce: args.enforce,
   });
-  console.log(`[content-safety-precheck] status=${out.status} findings=${out.findings.length}`);
+  console.log(`[content-safety-precheck] 状态: ${out.status} | 风险项: ${out.findings.length}`);
+  if (out.findings.length > 0) {
+    out.findings.forEach((f) => {
+      console.log(`  - [${f.level}] ${f.id}`);
+    });
+  }
   process.exit(out.code);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('content-safety-precheck.mjs')) {
-  main();
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '内容安全预检' }))
+    .catch((err) => {
+      console.error('无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
-

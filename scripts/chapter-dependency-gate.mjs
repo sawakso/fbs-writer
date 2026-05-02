@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { UserError } from './lib/user-errors.mjs';
 
 function parseArgs(argv) {
   const o = { bookRoot: null, chapter: null };
@@ -30,9 +31,19 @@ function parseCompleted(statusMd) {
 
 function main() {
   const args = parseArgs(process.argv);
-  if (!args.bookRoot || !args.chapter) {
-    console.error("用法: node scripts/chapter-dependency-gate.mjs --book-root <本书根> --chapter <章节id>");
-    process.exit(2);
+
+  // 参数校验
+  if (!args.bookRoot) {
+    throw new UserError('章节依赖门禁', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
+  }
+  if (!args.chapter) {
+    throw new UserError('章节依赖门禁', '缺少 --chapter 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --chapter <章节id>'
+    });
   }
 
   const root = path.resolve(args.bookRoot);
@@ -52,11 +63,21 @@ function main() {
 
   if (!miss.length) {
     console.log("chapter-dependency-gate: ✅ 依赖已满足");
-    process.exit(0);
+    return;
   }
 
-  console.error(`chapter-dependency-gate: ✖ 依赖未满足: ${JSON.stringify(miss)}`);
-  process.exit(1);
+  throw new UserError('章节依赖门禁', `依赖未满足: ${JSON.stringify(miss)}`, {
+    code: 'ERR_DEPENDENCY_NOT_MET',
+    detail: `章节 ${args.chapter} 的依赖未全部完成`,
+    solution: '请先完成以下依赖章节: ' + miss.join(', ')
+  });
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('chapter-dependency-gate.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '章节依赖门禁' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}

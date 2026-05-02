@@ -11,6 +11,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
+import { UserError } from "./lib/user-errors.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SKILL = path.resolve(__dirname, "..");
@@ -67,26 +68,32 @@ function main() {
     process.exit(0);
   }
   if (!args.book) {
-    console.error(
-        "用法: node scripts/init-project-memory.mjs --book <本书根> [--skill <技能包根>] [--with-workbuddy-hint] [--workbuddy-hint-workspace-only] [--with-environment-snapshot] [--no-redact]\n" +
-        "说明: 若存在 scripts/apply-book-memory-template.mjs 与 scripts/generate-book-context-index.mjs 将依次调用；可选 digest / 环境快照见 references/05-ops/workbuddy-user-memory-strategy.md 与 search-policy environmentSnapshot；--write 类输出默认脱敏路径，除非 --no-redact。"
-    );
-    process.exit(2);
+    throw new UserError('项目记忆初始化', '缺少 --book 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book <书稿根目录> 指定书稿目录'
+    });
   }
+  
+  console.log('[项目记忆初始化] 🚀 开始初始化项目记忆...');
+  
   const book = path.resolve(args.book);
   const skillRoot = args.skill;
 
   let code = 0;
+  console.log('[项目记忆初始化] 1/2 应用记忆模板...');
   code = runIfExists(skillRoot, "scripts/apply-book-memory-template.mjs", ["--book", book, "--skill", skillRoot]);
   if (code !== 0) process.exit(code);
+  
+  console.log('[项目记忆初始化] 2/2 生成上下文索引...');
   code = runIfExists(skillRoot, "scripts/generate-book-context-index.mjs", ["--book", book, "--skill", skillRoot]);
   if (code !== 0) process.exit(code);
 
   if (args.withWorkbuddyHint) {
     const digestScript = path.join(skillRoot, "scripts/workbuddy-memory-digest.mjs");
     if (!fs.existsSync(digestScript)) {
-      console.warn("init-project-memory: 跳过 WorkBuddy 摘要（未找到 scripts/workbuddy-memory-digest.mjs）");
+      console.log("[项目记忆初始化] 跳过 WorkBuddy 摘要（未找到 scripts/workbuddy-memory-digest.mjs）");
     } else {
+      console.log("[项目记忆初始化] 生成 WorkBuddy 摘要...");
       const extra = [
         digestScript,
         "--skill-root",
@@ -105,8 +112,9 @@ function main() {
   if (args.withEnvironmentSnapshot) {
     const snapScript = path.join(skillRoot, "scripts/workbuddy-environment-snapshot.mjs");
     if (!fs.existsSync(snapScript)) {
-      console.warn("init-project-memory: 跳过环境快照（宿主可选桥接脚本缺失：scripts/workbuddy-environment-snapshot.mjs）");
+      console.log("[项目记忆初始化] 跳过环境快照（宿主可选桥接脚本缺失：scripts/workbuddy-environment-snapshot.mjs）");
     } else {
+      console.log("[项目记忆初始化] 生成环境快照...");
       const snapExtra = [snapScript, "--skill-root", skillRoot, "--book-root", book, "--write"];
       if (args.workbuddyHintWorkspaceOnly) snapExtra.push("--no-user-probes");
       if (args.noRedact) snapExtra.push("--no-redact");
@@ -121,7 +129,16 @@ function main() {
     }
   }
 
-  console.log("init-project-memory: 完成（输出见上方；未随包的子步骤会显示「跳过」）");
+  console.log("[项目记忆初始化] ✅ 初始化完成（输出见上方；未随包的子步骤会显示「跳过」）");
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('init-project-memory.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '项目记忆初始化' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
+}
+
+console.log('✅ 改造完成: init-project-memory.mjs');

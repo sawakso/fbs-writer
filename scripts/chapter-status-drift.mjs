@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { countChars } from './lib/quality-runtime.mjs';
+import { UserError } from './lib/user-errors.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -90,26 +91,51 @@ export function analyzeChapterStatusDrift(bookRoot, maxDriftRatio = 0.2) {
 
 function main() {
   const args = parseArgs(process.argv);
+
+  // 参数校验
   if (!args.bookRoot) {
-    console.error('用法: node scripts/chapter-status-drift.mjs --book-root <本书根> [--max-drift-ratio 0.2] [--json]');
-    process.exit(2);
+    throw new UserError('章节状态漂移检测', '缺少 --book-root 参数', {
+      code: 'ERR_MISSING_ARGS',
+      solution: '请使用 --book-root <书稿根目录>'
+    });
   }
+  console.log('[章节状态漂移检测] 开始分析...');
   const r = analyzeChapterStatusDrift(args.bookRoot, args.maxDriftRatio);
+
   if (args.json) {
     console.log(JSON.stringify(r, null, 2));
-  } else {
-    if (r.message) console.log(`[chapter-status-drift] ${r.message}`);
-    for (const row of r.bad || []) {
-      console.warn(
-        `[chapter-status-drift] DRIFT ${row.chapterId}: 台账=${row.claimed} 实测=${row.actual} (ratio>${args.maxDriftRatio})`
-      );
-    }
-    if (r.ok) console.log('[chapter-status-drift] ✅ 无超阈值漂移');
-    else console.error(`[chapter-status-drift] ❌ ${r.bad.length} 行超阈值，请先 sync-chapter-status-chars`);
+    return;
   }
-  process.exit(r.ok ? 0 : 1);
+
+  if (r.message) {
+    console.log(`[章节状态漂移检测] ${r.message}`);
+  }
+
+  if (r.ok) {
+    console.log('[章节状态漂移检测] ✅ 无超阈值漂移');
+    return;
+  }
+
+  // 存在超阈值漂移，输出详情并抛出错误
+  console.log(`[章节状态漂移检测] 发现 ${r.bad.length} 行超阈值:`);
+  for (const row of r.bad || []) {
+    console.log(
+      `  - ${row.chapterId}: 台账=${row.claimed} 实测=${row.actual} (ratio=${row.driftRatio})`
+    );
+  }
+
+  throw new UserError('章节状态漂移检测', `${r.bad.length} 行超阈值漂移`, {
+    code: 'ERR_DRIFT_EXCEEDED',
+    detail: '章节状态表中的字数与实际文件字数差异超过阈值',
+    solution: '请先运行 sync-chapter-status-chars 同步字数'
+  });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main();
+if (process.argv[1] && process.argv[1].endsWith('chapter-status-drift.mjs')) {
+  import('./lib/user-errors.mjs')
+    .then(({ tryMain }) => tryMain(main, { friendlyName: '章节状态漂移检测' }))
+    .catch((err) => {
+      console.error('❌ 无法加载错误处理模块:', err.message);
+      process.exit(1);
+    });
 }
