@@ -92,6 +92,77 @@ export function estimateTime(type, params = {}) {
 }
 
 /**
+ * 全书写作时间估算（支持 Part/卷 分区）
+ * @param {object} params - 书稿参数
+ * @param {number} params.totalChapters - 总章节数
+ * @param {number} params.completedChapters - 已完成章节数
+ * @param {number} params.avgTimePerChapter - 单章平均耗时（分钟），首次按 2 分钟估算
+ * @param {Array} params.parts - 分区信息 [{name: 'Part 1', chapters: 10, completed: 10}, ...]
+ * @returns {object} { totalMinutes, remainingMinutes, perChapterMinutes, progressPercent }
+ */
+export function estimateBookWritingTime(params = {}) {
+  const {
+    totalChapters = 1,
+    completedChapters = 0,
+    avgTimePerChapter = 2,  // 首次按 2 分钟/章估算
+    parts = [],
+  } = params;
+
+  const perChapterMinutes = avgTimePerChapter;
+  const remainingChapters = totalChapters - completedChapters;
+  const remainingMinutes = remainingChapters * perChapterMinutes;
+  const totalMinutes = totalChapters * perChapterMinutes;
+  const progressPercent = totalChapters > 0
+    ? Math.round((completedChapters / totalChapters) * 100)
+    : 0;
+
+  // 按 Part 分区估算
+  const partEstimates = parts.map(part => ({
+    name: part.name,
+    chapters: part.chapters,
+    completed: part.completed || 0,
+    remaining: part.chapters - (part.completed || 0),
+    minutes: (part.chapters - (part.completed || 0)) * perChapterMinutes,
+  }));
+
+  return {
+    totalMinutes: Math.round(totalMinutes * 10) / 10,
+    remainingMinutes: Math.round(remainingMinutes * 10) / 10,
+    perChapterMinutes: Math.round(perChapterMinutes * 10) / 10,
+    progressPercent,
+    totalChapters,
+    completedChapters,
+    remainingChapters,
+    partEstimates,
+  };
+}
+
+/**
+ * 生成书稿进度汇总文本（用于 AI 回复）
+ * @param {object} estimate - estimateBookWritingTime 返回的结果
+ * @param {string} bookName - 书名
+ * @returns {string} 格式化后的进度汇总文本
+ */
+export function formatBookProgressSummary(estimate, bookName = '本书') {
+  const lines = [];
+
+  lines.push(`📖 ${bookName}`);
+  lines.push(`⏱️ 预估总用时：约 ${formatTime(estimate.totalMinutes)}（${estimate.totalChapters} 章 × 平均 ${estimate.perChapterMinutes} 分钟/章）`);
+  lines.push(`📊 当前进度：${estimate.completedChapters}/${estimate.totalChapters} 章`);
+  lines.push(`⏳ 预计剩余：约 ${formatTime(estimate.remainingMinutes)}`);
+
+  if (estimate.partEstimates.length > 0) {
+    lines.push('');  // 空行分隔
+    estimate.partEstimates.forEach(part => {
+      const status = part.completed >= part.chapters ? '✅' : '📍';
+      lines.push(`${status} ${part.name}：${part.chapters} 章，${part.remaining > 0 ? `剩余约 ${formatTime(part.minutes)}` : '已完成'}`);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * 格式化时间为中文显示（优化版）
  * @param {number} minutes - 分钟数
  * @returns {string} 格式化的时间字符串

@@ -21,6 +21,7 @@ import path from 'path';
 import { globSync } from 'glob';
 import { upsertBookSnippetIndex } from './lib/fbs-book-snippet-index.mjs';
 import { UserError } from './lib/user-errors.mjs';
+import iconv from 'iconv-lite';
 
 function parseArgs(argv) {
   const o = {
@@ -77,10 +78,68 @@ function recordMergeArtifacts(bookRoot, payload) {
   }
 }
 
+function extractChapterNumber(filename) {
+  const base = path.basename(filename);
+
+  // 第X章 / 第X篇（阿拉伯数字）
+  let match = base.match(/第\s*(\d+)\s*[章节篇]/);
+  if (match) return parseInt(match[1], 10);
+
+  // 第X章 / 第X篇（中文数字）
+  match = base.match(/第\s*([零一二三四五六七八九十]+)\s*[章节篇]/);
+  if (match) {
+    const map = { '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+    const str = match[1];
+    if (map[str] !== undefined) return map[str];
+    // 十一～十九
+    if (str.startsWith('十') && str.length === 2) return 10 + (map[str[1]] || 0);
+    // 二十～九十九
+    if (str.length >= 2 && map[str[0]] !== undefined && str[1] === '十') {
+      const tens = map[str[0]] * 10;
+      if (str.length === 2) return tens;
+      return tens + (map[str[2]] || 0);
+    }
+  }
+
+  // Chapter-X
+  match = base.match(/Chapter\s*(\d+)/i);
+  if (match) return parseInt(match[1], 10);
+
+  // 提取任意数字
+  match = base.match(/(\d+)/);
+  if (match) return parseInt(match[1], 10);
+
+  return -1;
+}
+
+function readFileAutoEncoding(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const utf8Text = buffer.toString('utf8');
+
+  // UTF-8 解码后出现替换字符 → 大概率不是 UTF-8
+  if (!utf8Text.includes('\uFFFD')) {
+    return utf8Text;
+  }
+
+  // 尝试 GBK（中文 Windows 常见编码）
+  try {
+    return iconv.decode(buffer, 'gbk');
+  } catch (e) {
+    return utf8Text;
+  }
+}
+
 function naturalSortPaths(paths) {
-  return [...paths].sort((a, b) =>
-    path.basename(a).localeCompare(path.basename(b), 'zh-Hans-CN', { numeric: true }),
-  );
+  return [...paths].sort((a, b) => {
+    const numA = extractChapterNumber(a);
+    const numB = extractChapterNumber(b);
+
+    if (numA >= 0 && numB >= 0) return numA - numB;
+    if (numA >= 0) return -1;
+    if (numB >= 0) return 1;
+
+    return a.localeCompare(b, 'zh-Hans-CN', { numeric: true });
+  });
 }
 
 async function main() {
@@ -148,7 +207,7 @@ async function main() {
     }
 
     chunks.push(`<!-- source: ${rel} -->`, '');
-    chunks.push(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trimEnd());
+    chunks.push(readFileAutoEncoding(file).replace(/\r\n/g, '\n').trimEnd());
     chunks.push('', '');
   }
 
