@@ -25,7 +25,7 @@ function buildTemplateWithDetectedRow(bookRoot) {
   try {
     if (fs.existsSync(abs)) {
       const n = fs.readFileSync(abs, "utf8").replace(/\s+/g, "").length;
-      if (n > 0) targetChars = Math.max(3000, Math.min(20000, n + 2000));
+      if (n > 0) targetChars = Math.max(3000, Math.min(200000, n + 2000));
     }
   } catch {
     // ignore
