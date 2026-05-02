@@ -133,28 +133,90 @@ export async function tryMain(fn, opts = {}) {
   } catch (err) {
     // 构造用户可见消息
     let userMsg;
+    let solution = null;
 
     if (err instanceof UserError) {
       userMsg = err.userMessage;
+      solution = err.solution;
     } else {
       const code = err.code || '';
-      const cat = ERROR_CATEGORIES[code] || {};
-      const title = cat.title || '未知错误';
-      const emoji = cat.emoji || '⚠️';
-      const reason = err.message?.split('\n')[0] || String(err);
+      const errName = err.name || '';
+      const errMsg = err.message || '';
+      const errCause = err.cause?.message || err.cause?.code || '';
 
-      userMsg = `${emoji} 调用${friendlyName}失败，${title}：${reason}`;
+      // 从 cause 中提取网络错误码（fetch API 的底层错误）
+      const effectiveCode = code || errCause;
 
-      // 常见问题附建议
-      if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') {
-        userMsg += '\n  💡 请进入 skill 目录执行：npm install';
-      } else if (code === 'ENOENT') {
-        const m = err.message?.match(/'([^']+)'/);
-        if (m) userMsg += `\n  💡 请检查路径是否存在：${m[1]}`;
-      } else if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
-        userMsg += '\n  💡 请检查网络连接或代理设置';
-      } else if (code === 'ERR_LAUNCH_FAILED') {
-        userMsg += '\n  💡 请安装 Chromium 或检查系统依赖';
+      // 检测网络相关关键词（从错误消息中识别 ECONNREFUSED/ETIMEDOUT 等）
+      const isNetworkError =
+        errName === 'AbortError' ||                           // fetch 超时中止
+        errName === 'TypeError' && (
+          errMsg.includes('fetch') ||
+          errMsg.includes('network') ||
+          errMsg.includes('连接') ||
+          errMsg.includes('网络')
+        ) ||
+        String(err).includes('ECONNREFUSED') ||
+        String(err).includes('ETIMEDOUT') ||
+        String(err).includes('ENOTFOUND') ||
+        String(err).includes('ECONNRESET');
+
+      // 识别超时中止（AbortError）
+      if (errName === 'AbortError' || errMsg.includes('aborted')) {
+        const cat = ERROR_CATEGORIES['ETIMEDOUT'] || {};
+        userMsg = `${cat.emoji || '🌐'} 调用${friendlyName}失败，${cat.title || '连接超时'}：请求被中止（可能是网络较慢或服务器无响应）`;
+        solution = '请检查网络连接，或稍后重试。如果持续出现此问题，可能是目标服务器响应过慢。';
+      }
+      // 识别具体网络错误码
+      else if (effectiveCode === 'ECONNREFUSED' || String(err).includes('ECONNREFUSED')) {
+        const cat = ERROR_CATEGORIES['ECONNREFUSED'] || {};
+        userMsg = `${cat.emoji || '🌐'} 调用${friendlyName}失败，${cat.title || '连接被拒绝'}：目标服务器拒绝连接`;
+        solution = '请检查网络连接，或确认目标服务是否正常运行。';
+      }
+      else if (effectiveCode === 'ETIMEDOUT' || String(err).includes('ETIMEDOUT')) {
+        const cat = ERROR_CATEGORIES['ETIMEDOUT'] || {};
+        userMsg = `${cat.emoji || '🌐'} 调用${friendlyName}失败，${cat.title || '连接超时'}：网络连接超时`;
+        solution = '网络较慢或不稳定，请稍后重试，或检查是否开启了代理。';
+      }
+      else if (effectiveCode === 'ENOTFOUND' || String(err).includes('ENOTFOUND') || errMsg.includes('getaddrinfo')) {
+        const cat = ERROR_CATEGORIES['ENOTFOUND'] || {};
+        userMsg = `${cat.emoji || '🌐'} 调用${friendlyName}失败，${cat.title || 'DNS 解析失败'}：无法解析目标地址`;
+        solution = '请检查网址是否正确，或更换网络环境后重试。';
+      }
+      else if (effectiveCode === 'ECONNRESET' || String(err).includes('ECONNRESET')) {
+        const cat = ERROR_CATEGORIES['ECONNRESET'] || {};
+        userMsg = `${cat.emoji || '🌐'} 调用${friendlyName}失败，${cat.title || '连接被重置'}：服务器意外断开连接`;
+        solution = '网络不稳定，请稍后重试。';
+      }
+      // 通用网络错误
+      else if (isNetworkError) {
+        const cat = ERROR_CATEGORIES['ERR_NETWORK'] || {};
+        userMsg = `${cat.emoji || '🌐'} 调用${friendlyName}失败，${cat.title || '网络连接错误'}：${errMsg}`;
+        solution = '请检查网络连接，或稍后重试。';
+      }
+      // 已知错误码
+      else {
+        const cat = ERROR_CATEGORIES[effectiveCode] || {};
+        const title = cat.title || '未知错误';
+        const emoji = cat.emoji || '⚠️';
+        const reason = errMsg.split('\n')[0] || String(err);
+
+        userMsg = `${emoji} 调用${friendlyName}失败，${title}：${reason}`;
+
+        // 常见问题附建议
+        if (effectiveCode === 'MODULE_NOT_FOUND' || effectiveCode === 'ERR_MODULE_NOT_FOUND') {
+          solution = '请进入 skill 目录执行：npm install';
+        } else if (effectiveCode === 'ENOENT') {
+          const m = errMsg.match(/'([^']+)'/);
+          solution = m ? `请检查路径是否存在：${m[1]}` : '请检查文件路径是否正确';
+        } else if (effectiveCode === 'ERR_LAUNCH_FAILED') {
+          solution = '请安装 Chromium 或检查系统依赖';
+        }
+      }
+
+      // 追加建议（如果已有 userMsg 且还没有建议）
+      if (solution && !userMsg.includes('💡')) {
+        userMsg += `\n  💡 建议：${solution}`;
       }
     }
 
@@ -556,21 +618,69 @@ export function getErrorScenario(code) {
  * @returns {UserError} 友好的用户错误
  */
 export function wrapError(action, error) {
-  const code = error.code || '';
-  const scenario = getErrorScenario(code);
+  const err = error;
+  const code = err.code || '';
+  const errName = err.name || '';
+  const errMsg = err.message || '';
+  const errCause = err.cause?.code || '';
+  const effectiveCode = code || errCause;
+  const errStr = String(err);
 
-  if (scenario) {
-    return new UserError(action, error.message || scenario.title, {
-      code,
-      solution: scenario.solution,
+  // 检测网络错误关键词
+  const isNetworkRelated =
+    errName === 'AbortError' ||
+    errName === 'TypeError' && (errMsg.includes('fetch') || errMsg.includes('Failed to fetch') || errMsg.includes('network')) ||
+    errStr.includes('ECONNREFUSED') ||
+    errStr.includes('ETIMEDOUT') ||
+    errStr.includes('ENOTFOUND') ||
+    errStr.includes('ECONNRESET') ||
+    errStr.includes('net::ERR');
+
+  // 识别 AbortError（fetch 超时）
+  if (errName === 'AbortError' || errMsg.toLowerCase().includes('aborted')) {
+    return new UserError(action, '请求超时（网络较慢或服务器无响应）', {
+      code: 'ETIMEDOUT',
+      solution: '请检查网络连接，或稍后重试。如果持续出现此问题，可能是目标服务器响应过慢。',
+    });
+  }
+
+  // 识别具体网络错误码
+  const networkCode = errStr.includes('ECONNREFUSED') ? 'ECONNREFUSED'
+    : errStr.includes('ETIMEDOUT') ? 'ETIMEDOUT'
+    : errStr.includes('ENOTFOUND') || errMsg.includes('getaddrinfo') ? 'ENOTFOUND'
+    : errStr.includes('ECONNRESET') ? 'ECONNRESET'
+    : effectiveCode;
+
+  if (networkCode && ERROR_CATEGORIES[networkCode]) {
+    const cat = ERROR_CATEGORIES[networkCode];
+    return new UserError(action, errMsg || cat.title, {
+      code: networkCode,
+      solution: cat.title === '连接被拒绝' ? '请检查网络连接，或确认目标服务是否正常运行。'
+        : cat.title === '连接超时' ? '网络较慢或不稳定，请稍后重试，或检查是否开启了代理。'
+        : cat.title === 'DNS 解析失败' ? '请检查网址是否正确，或更换网络环境后重试。'
+        : cat.title === '连接被重置' ? '网络不稳定，请稍后重试。'
+        : '请检查网络连接，或稍后重试。',
+    });
+  }
+
+  // 通用网络错误
+  if (isNetworkRelated) {
+    const cat = ERROR_CATEGORIES['ERR_NETWORK'];
+    return new UserError(action, errMsg || '网络连接错误', {
+      code: 'ERR_NETWORK',
+      solution: '请检查网络连接，或稍后重试。',
     });
   }
 
   // 尝试从 ERROR_CATEGORIES 获取
-  const cat = ERROR_CATEGORIES[code] || {};
-  return new UserError(action, error.message, {
-    code,
-    solution: cat.title ? `遇到问题，请检查输入后重试。` : '未知错误，请稍后重试。',
+  const cat = ERROR_CATEGORIES[effectiveCode] || {};
+  return new UserError(action, errMsg, {
+    code: effectiveCode,
+    solution: effectiveCode === 'MODULE_NOT_FOUND' ? '请进入 skill 目录执行：npm install'
+      : effectiveCode === 'ENOENT' ? '请检查文件路径是否正确'
+      : effectiveCode === 'ERR_LAUNCH_FAILED' ? '请安装 Chromium 或检查系统依赖'
+      : cat.title ? '遇到问题，请检查输入后重试。'
+      : '未知错误，请稍后重试。',
   });
 }
 
