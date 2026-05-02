@@ -14,24 +14,44 @@
   - 分卷模式：10 万字+自动启用，每卷 30 万字
   - scale-tiers.json 新增 XL 档位支持（>200 万字）
 
+- **项目规模自动估算**
+  - 新增 `scripts/update-project-scale.mjs` 脚本
+  - 从 `outline.md` 自动估算章节数和字数
+  - 自动回写 `project-config.json` 的 `targetWordCount`
+  - 解析并保存写作策略档位到 `.fbs/writing-strategy.json`
+  - 支持 S/M/L/XL 四档位自动触发
+
+- **分阶段测试用例**
+  - 新增 `docs/TEST-CASES-PHASES.md`
+  - 覆盖 S0-S6 全阶段 + OpenClaw 适配层
+  - 共 45 个测试用例
+
 ### 🐛 修复
 
 - 修复"生成 3 万字实际只有 2 万字"问题（WorkBuddy 平台步骤限制）
 - `repair-expansion-plan-skeleton.mjs`：单章目标上限 20000 → 200000
 - `workflow-s3-core.md`：Auto-Run 分批粒度 20 章 → 2 章
+- 修复 `project-config.json` 的 `targetWordCount` 未回写导致档位判断失效
 
 ### 🔄 修改
 
-- **高频脚本改造**（10/43 完成）
-  - 新增 `split-workflow-full.mjs`：工作流拆分（UserError + 友好输出）
-  - 新增 `fbs-doctor.mjs`：技能预检聚合（UserError + 友好输出）
-  - 新增 `fbs-cleanup.mjs`：书稿清理（UserError + 友好输出）
-  - 新增 `expansion-gate.mjs`：扩写门禁（UserError + 友好输出）
-  - 之前已完成：`merge-chapters`、`export-to-pdf`、`export-to-docx`、`quality-auditor`、`session-exit`、`write-progress-snapshot`
+- **高频脚本改造**（76 个完成）
+  - 全部入口脚本接入 `UserError` 统一异常处理
+  - 使用 `tryMain` 包装主函数
+  - 改进控制台输出（进度显示、友好错误提示）
+
+- **README.md 改进**
+  - 新增文件结构树展示
+  - 新增规模分级管理说明（S/M/L/XL 四档位）
+  - 使用近似值展示（≈3万/S、≈10万/M、≈50万/L、≈200万/XL）
+
+- **SKILL.md 改进**
+  - 新增规模分级说明章节
+  - 新增 `update-project-scale.mjs` 自动调用指令（S1 后自动执行）
+  - 更新意图→脚本速查表
 
 ### 计划中
 
-- [ ] 高频脚本改造（剩余 33 个）
 - [ ] OpenClaw 日志体系接入
 - [ ] 功能降级策略（不支持时的优雅提示）
 - [ ] 自动化测试覆盖率提升

@@ -235,6 +235,7 @@ node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>
 | 退出 / 停止 | `node scripts/session-exit.mjs --book-root <bookRoot> --json > $null 2>&1` |
 | 环境预检 | `node scripts/env-preflight.mjs --json > $null 2>&1` |
 | S0 素材达标检测 | `node scripts/s0-exit-gate.mjs --book-root <bookRoot> --json > $null 2>&1` |
+| 大纲生成完成（S1 后）| `node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1` |
 | 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot> > $null 2>&1` |
 
 ---
@@ -313,6 +314,14 @@ XL 档（百万字以上）：
 确认目标读者画像 → 制定章节目录 → 案例库建立。
 
 **达标条件**：大纲已确认 + `story-bank.md` ≥ 3 条案例。
+
+**✅ S1 大纲生成完成后，必须立即调用（AI 自动执行，无需用户确认）：**
+```
+node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1
+```
+> 目的：自动估算章节数和字数，回写 `project-config.json`，
+> 解析并保存档位策略到 `.fbs/writing-strategy.json`，
+> 确保 S3 写稿时档位策略正确生效。
 
 ### S3：正式写稿（串行约束 + 实时进度）
 

@@ -105,11 +105,11 @@ FBS-BookWriter-LRZ 采用六阶段写作流程：
 ```
 fbs-bookwriter-lrz/
 ├── 📖 README.md                    # 项目入口文档
-├── 📖 SKILL.md                     # WorkBuddy 技能入口
+├── 📖 SKILL.md                     # SKILL 技能入口
 ├── 📦 package.json                 # Node.js 依赖配置
 │
-├── 📁 scripts/                    # 🔥 核心脚本目录（187个脚本）
-│   ├── 📁 lib/                     # 🔥 共享代码库（43个核心库）
+├── 📁 scripts/                    # ⭐ 核心脚本目录（187个脚本）
+│   ├── 📁 lib/                     # ⭐ 共享代码库（43个核心库）
 │   │   ├── user-errors.mjs         # 统一异常处理（UserError）
 │   │   ├── ux-progress-enhanced.mjs # 进度追踪系统
 │   │   ├── openclaw-host-bridge.mjs  # OpenClaw 宿主桥接
@@ -133,12 +133,12 @@ fbs-bookwriter-lrz/
 │   └── [175+ 更多脚本...]          # 各类辅助脚本
 │
 ├── 📁 docs/                        # 📚 开发文档
-│   ├── DEVELOPMENT.md             # 🔥 开发指南
+│   ├── DEVELOPMENT.md             # ⭐ 开发指南
 │   ├── TEST-CASES.md              # 基础测试用例（42个）
-│   ├── TEST-CASES-PHASES.md       # 🔥 分阶段测试用例（45个）
+│   ├── TEST-CASES-PHASES.md       # ⭐ 分阶段测试用例（45个）
 │   └── history/                   # 历史文档
 │
-├── 📁 openclaw/                    # 🔥 OpenClaw 适配层
+├── 📁 openclaw/                    # ⭐ OpenClaw 适配层
 │   └── fbs-bookwriter-lrz/         # OpenClaw 技能包
 │       ├── skill.json              # 技能配置
 │       ├── SKILL.md                # OpenClaw 入口
@@ -151,7 +151,7 @@ fbs-bookwriter-lrz/
 │   ├── agents/                     # Agent 定义
 │   └── providers/                  # Provider 配置
 │
-├── 📁 scene-packs/                 # 🔥 场景包
+├── 📁 scene-packs/                 # ⭐ 场景包
 │   ├── official-schema.json        # 官方场景模式
 │   ├── enterprise.json             # 企业场景
 │   └── user-config.json            # 用户自定义
@@ -204,7 +204,7 @@ fbs-bookwriter-lrz/
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    FBS-BookWriter                         │
+│                    FBS-BookWriter-lrz                   │
 ├──────────────┬──────────────┬───────────────────────────┤
 │  WorkBuddy   │   OpenClaw   │       CodeBuddy           │
 ├──────────────┼──────────────┼───────────────────────────┤
