@@ -26,7 +26,13 @@
 // 常量配置
 // ============================================================
 const LONG_TASK_THRESHOLD_MINUTES = 2; // 超过2分钟需要确认
-const PROGRESS_BAR_WIDTH = 40;         // 进度条宽度（字符数）
+const PROGRESS_BAR_WIDTH = 20;        // 进度条宽度（字符数），SKILL 规范为 20
+
+// 预计算的字符（避免 .repeat() 重复调用）
+const PROGRESS_CHARS = {
+  filled: Array.from({ length: PROGRESS_BAR_WIDTH }, () => '█').join(''),
+  empty: Array.from({ length: PROGRESS_BAR_WIDTH }, () => '░').join(''),
+};
 
 // ============================================================
 // 时间估算算法
@@ -86,22 +92,22 @@ export function estimateTime(type, params = {}) {
 }
 
 /**
- * 格式化时间为中文显示
+ * 格式化时间为中文显示（优化版）
  * @param {number} minutes - 分钟数
  * @returns {string} 格式化的时间字符串
  */
 export function formatTime(minutes) {
-  if (minutes < 1) {
-    return `${Math.round(minutes * 60)}秒`;
-  }
+  if (minutes < 0.1) return '<1秒';
+  if (minutes < 1) return `${Math.round(minutes * 60)}秒`;
   if (minutes < 60) {
     const mins = Math.floor(minutes);
     const secs = Math.round((minutes - mins) * 60);
-    return secs > 0 ? `${mins}分${secs}秒` : `${mins}分钟`;
+    if (secs === 0) return `${mins}分钟`;
+    return `${mins}分${secs}秒`;
   }
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
-  return `${hours}小时${mins}分钟`;
+  return `${hours}小时${mins > 0 ? mins + '分钟' : ''}`;
 }
 
 // ============================================================
@@ -116,25 +122,24 @@ export function formatTime(minutes) {
  */
 export function renderProgressBar(progress, options = {}) {
   const {
-    width = PROGRESS_BAR_WIDTH,
-    filled = '█',
-    empty = '░',
     showPercent = true,
     showEta = false,
     etaMinutes = 0,
   } = options;
 
-  const filledCount = Math.round((progress / 100) * width);
-  const emptyCount = width - filledCount;
+  // 使用预计算的字符，直接截取
+  const filledCount = Math.round((progress / 100) * PROGRESS_BAR_WIDTH);
+  const filled = PROGRESS_CHARS.filled.substring(0, filledCount);
+  const empty = PROGRESS_CHARS.empty.substring(filledCount);
 
-  let bar = `[${filled.repeat(filledCount)}${empty.repeat(emptyCount)}]`;
+  let bar = `${filled}${empty}`;
 
   if (showPercent) {
-    bar += ` ${progress.toFixed(0).padStart(3)}%`;
+    bar = `${bar} ${Math.round(progress).toString().padStart(3)}%`;
   }
 
   if (showEta && progress < 100) {
-    bar += `  预计剩余: ${formatTime(etaMinutes)}`;
+    bar = `${bar} 预计还需:${formatTime(etaMinutes)}`;
   }
 
   return bar;
@@ -192,7 +197,7 @@ export async function confirmLongTask(taskName, estimatedMinutes) {
 }
 
 // ============================================================
-// 进度追踪器
+// 进度追踪器（仅长任务启用）
 // ============================================================
 
 /**
@@ -201,9 +206,10 @@ export async function confirmLongTask(taskName, estimatedMinutes) {
  * @param {string} config.name - 任务名称（中文）
  * @param {string} config.type - 操作类型（用于时间估算）
  * @param {Function} config.estimate - 参数估算函数 (args) => params
+ * @param {number} [config.forceShow] - 强制显示（忽略阈值）
  */
 export function createProgressTracker(config) {
-  const { name, type, estimate } = config;
+  const { name, type, estimate, forceShow = false } = config;
 
   let state = {
     progress: 0,
@@ -212,6 +218,7 @@ export function createProgressTracker(config) {
     estimatedMinutes: 0,
     isRunning: false,
     shouldContinue: true,
+    enabled: false,  // 是否启用进度显示
   };
 
   return {
@@ -225,16 +232,21 @@ export function createProgressTracker(config) {
       const params = estimate ? estimate(args) : {};
       state.estimatedMinutes = estimateTime(type, params);
       state.startTime = Date.now();
-      state.isRunning = true;
 
-      // 显示启动信息
-      console.log(`\n📚 ${name}启动中...`);
+      // 判断是否需要显示进度（长任务 or 强制显示）
+      state.enabled = forceShow || state.estimatedMinutes >= LONG_TASK_THRESHOLD_MINUTES;
 
-      // 长任务确认
-      if (state.estimatedMinutes >= LONG_TASK_THRESHOLD_MINUTES) {
-        state.shouldContinue = await confirmLongTask(name, state.estimatedMinutes);
+      if (!state.enabled) {
+        // 短任务：不显示进度条，直接执行
+        state.isRunning = true;
+        return { shouldContinue: true, skipProgress: true };
       }
 
+      // 长任务：显示确认提示
+      state.isRunning = true;
+      console.log(`\n📚 ${name}启动中...`);
+
+      state.shouldContinue = await confirmLongTask(name, state.estimatedMinutes);
       if (!state.shouldContinue) {
         this.stop();
         return { shouldContinue: false };
@@ -243,7 +255,7 @@ export function createProgressTracker(config) {
       // 显示初始进度条
       this.update({ progress: 0, message: '开始执行...' });
 
-      return { shouldContinue: true };
+      return { shouldContinue: true, skipProgress: false };
     },
 
     /**
@@ -255,24 +267,32 @@ export function createProgressTracker(config) {
     update({ progress, message }) {
       if (!state.isRunning) return;
 
-      state.progress = Math.min(100, Math.max(0, progress));
-      if (message !== undefined) {
-        state.message = message;
+      // 短任务不显示进度
+      if (!state.enabled) return;
+
+      const clampedProgress = progress < 0 ? 0 : progress > 100 ? 100 : progress;
+      if (message !== undefined) state.message = message;
+
+      // 只在进度变化 >5% 或消息变化时才输出（避免频繁刷新）
+      const prevProgress = state.progress;
+      if (Math.abs(clampedProgress - prevProgress) < 5 && message === state.message) {
+        return;
       }
 
-      // 计算预计剩余时间
-      const elapsedMinutes = (Date.now() - state.startTime) / 60000;
-      const etaMinutes = state.estimatedMinutes * (1 - state.progress / 100);
+      state.progress = clampedProgress;
 
-      // 构建进度行
-      const progressBar = renderProgressBar(state.progress, {
-        showEta: etaMinutes > 0.1,
-        etaMinutes,
-      });
+      // 构建进度行（简化版）
+      const filledCount = Math.round((clampedProgress / 100) * PROGRESS_BAR_WIDTH);
+      const filled = PROGRESS_CHARS.filled.substring(0, filledCount);
+      const empty = PROGRESS_CHARS.empty.substring(filledCount);
+      const etaMinutes = state.estimatedMinutes * (1 - clampedProgress / 100);
 
-      const line = `  ${progressBar}  ${state.message}`;
+      let line = `${filled}${empty} ${Math.round(clampedProgress)}%`;
+      if (clampedProgress < 100 && etaMinutes > 0.1) {
+        line += ` 预计还需:${formatTime(etaMinutes)}`;
+      }
+      if (state.message) line += ` ${state.message}`;
 
-      // 清除当前行并重绘
       clearAndWrite(line);
     },
 
@@ -283,15 +303,21 @@ export function createProgressTracker(config) {
     complete(completionMessage = '完成') {
       if (!state.isRunning) return;
 
-      state.progress = 100;
       state.isRunning = false;
+      state.progress = 100;
 
-      // 计算实际耗时
-      const elapsedMinutes = (Date.now() - state.startTime) / 60000;
+      // 短任务：只输出完成消息
+      if (!state.enabled) {
+        console.log(`✅ ${name}${completionMessage !== '完成' ? '：' + completionMessage : ''}`);
+        this.stop();
+        return;
+      }
 
-      // 换行并显示完成信息
+      // 长任务：清除进度条，显示完成信息
       console.log('\n'); // 清除单行进度
       console.log(`✅ ${name}${completionMessage !== '完成' ? '：' + completionMessage : ''}`);
+      
+      const elapsedMinutes = (Date.now() - state.startTime) / 60000;
       console.log(`   耗时: ${formatTime(elapsedMinutes)}`);
 
       this.stop();
@@ -305,13 +331,24 @@ export function createProgressTracker(config) {
       if (!state.isRunning) return;
 
       state.isRunning = false;
-      const elapsedMinutes = (Date.now() - state.startTime) / 60000;
 
+      // 短任务：只输出错误消息
+      if (!state.enabled) {
+        console.error(`❌ ${name}失败`);
+        if (error && error.message) {
+          console.error(`   错误: ${error.message}`);
+        }
+        this.stop();
+        return;
+      }
+
+      // 长任务：清除进度条，显示错误信息
       console.log('\n'); // 清除单行进度
       console.error(`❌ ${name}失败`);
       if (error && error.message) {
         console.error(`   错误: ${error.message}`);
       }
+      const elapsedMinutes = (Date.now() - state.startTime) / 60000;
       console.error(`   已耗时: ${formatTime(elapsedMinutes)}`);
 
       this.stop();
@@ -348,18 +385,29 @@ export function withProgress(fn, config) {
   const tracker = createProgressTracker(config);
 
   return async function (...args) {
-    const { shouldContinue } = await tracker.start(
-      args[0] || {}  // 假设第一个参数是选项对象
-    );
+    const result = await tracker.start(args[0] || {});
 
-    if (!shouldContinue) {
+    // 短任务：直接执行，不追踪进度
+    if (result.skipProgress) {
+      try {
+        const output = await fn(...args, null);  // 传入 null 表示无进度追踪
+        console.log(`✅ ${config.name}完成`);
+        return output;
+      } catch (error) {
+        console.error(`❌ ${config.name}失败: ${error.message}`);
+        throw error;
+      }
+    }
+
+    // 长任务：带进度追踪执行
+    if (!result.shouldContinue) {
       return null;
     }
 
     try {
-      const result = await fn(...args, tracker);
+      const output = await fn(...args, tracker);
       tracker.complete();
-      return result;
+      return output;
     } catch (error) {
       tracker.fail(error);
       throw error;

@@ -1,0 +1,42 @@
+{
+  "$schema": "openclaw-skill-v1",
+  "name": "fbs-writer",
+  "version": "2.1.2",
+  "description": "福帮手长文档写作工具 - 高质量书籍、手册、白皮书、行业指南全流程",
+  "emoji": "📖",
+  "requires": {
+    "bins": ["node"],
+    "nodeVersion": ">=18.0.0"
+  },
+  "entry": {
+    "command": "node",
+    "script": "scripts/intake-router.mjs",
+    "args": ["--book-root", "{bookRoot}", "--intent", "{intent}"]
+  },
+  "capabilities": {
+    "writing": {
+      "phases": ["S0", "S1", "S2", "S3", "S4", "S5", "S6"],
+      "formats": ["markdown", "html", "docx", "pdf"],
+      "features": ["multi-agent", "quality-audit", "session-resume"]
+    },
+    "intents": [
+      "写书", "出书", "写长篇", "写手册", "写白皮书",
+      "写行业指南", "定大纲", "写章节", "导出",
+      "去AI味", "质量自检", "整理素材"
+    ]
+  },
+  "filePatterns": {
+    "bookRoot": ".fbs",
+    "chapterDir": "chapters",
+    "resumeFile": ".fbs/session-resume.json",
+    "chapterStatus": ".fbs/chapter-status.md"
+  },
+  "hostBridge": {
+    "module": "scripts/lib/openclaw-host-bridge.mjs",
+    "snapshot": "createOpenClawHostSnapshot",
+    "sessionMemory": "getSessionMemory",
+    "saveSessionMemory": "saveSessionMemory"
+  },
+  "deprecatedIntents": [],
+  "tags": ["writing", "book", "document", "chinese"]
+}
