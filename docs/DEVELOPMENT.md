@@ -5,13 +5,13 @@
 ## 📐 架构概述
 
 ```
-fbs-writer/
+fbs-bookwriter-lrz/
 ├── SKILL.md                  # WorkBuddy 入口（YAML frontmatter）
 ├── README.md                 # WorkBuddy 安装指南
 ├── scripts/                  # ⭐ 共享代码库（三通道共用）
 │   ├── lib/                 # 核心库（user-errors, ux-progress, ...）
 │   └── *.mjs                # 172 个入口脚本
-├── openclaw/fbs-writer/     # OpenClaw 适配层
+├── openclaw/fbs-bookwriter-lrz/     # OpenClaw 适配层
 │   ├── skill.json           # OpenClaw 标准配置
 │   ├── SKILL.md             # OpenClaw 专用入口
 │   ├── index.mjs            # 适配层索引
@@ -69,7 +69,7 @@ try {
 
 3. **更新文档**
    - 更新 `SKILL.md`（WorkBuddy 入口）
-   - 更新 `openclaw/fbs-writer/SKILL.md`（OpenClaw 入口）
+   - 更新 `openclaw/fbs-bookwriter-lrz/SKILL.md`（OpenClaw 入口）
    - 更新 `CHANGELOG.md`
 
 ### 示例：改造现有脚本
@@ -131,7 +131,7 @@ node scripts/session-exit.mjs --help
 node scripts/env-preflight.mjs --json
 
 # 测试 OpenClaw 适配层
-node openclaw/fbs-writer/index.mjs --test
+node openclaw/fbs-bookwriter-lrz/index.mjs --test
 ```
 
 ### 跨平台测试
@@ -156,7 +156,7 @@ node openclaw/fbs-writer/index.mjs --test
 
 1. **更新版本号**
    - `SKILL.md` 中的 `version:` 字段
-   - `openclaw/fbs-writer/skill.json` 中的 `"version"` 字段
+   - `openclaw/fbs-bookwriter-lrz/skill.json` 中的 `"version"` 字段
    - `package.json` 中的 `"version"` 字段
 
 2. **更新 CHANGELOG.md**
@@ -202,7 +202,7 @@ if (hostType === 'openclaw') {
 **A**: 使用 `node --inspect` 调试：
 
 ```bash
-node --inspect openclaw/fbs-writer/index.mjs --test
+node --inspect openclaw/fbs-bookwriter-lrz/index.mjs --test
 ```
 
 然后在 Chrome 中打开 `chrome://inspect` 进行调试。

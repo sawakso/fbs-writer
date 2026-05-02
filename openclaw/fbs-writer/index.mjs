@@ -96,7 +96,7 @@ export { FORMAT_OPTIONS } from './adapter/result-formatter.mjs';
 // ── 版本信息 ────────────────────────────────────────────────────────────────
 
 export const ADAPTER_VERSION = '2.1.2';
-export const ADAPTER_NAME = 'fbs-writer-openclaw-adapter';
+export const ADAPTER_NAME = 'fbs-bookwriter-lrz-openclaw-adapter';
 
 // ── CLI 入口 ────────────────────────────────────────────────────────────────
 

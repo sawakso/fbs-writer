@@ -1,7 +1,7 @@
 ---
-name: fbs-writer
+name: fbs-bookwriter-lrz
 version: 2.1.2
-plugin-id: fbs-writer-v212
+plugin-id: fbs-bookwriter-lrz-v212
 description: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材"
 description_zh: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材"
 description_en: "Dual-channel long-form writing workflow for books, manuals, whitepapers, guides and reports with layered QC, 7-lock anti-drift anchors, and offline fallback."
@@ -15,11 +15,11 @@ scene-packs: [general, genealogy, consultant, ghostwriter, training, personal-bo
 ui-actions: true
 ---
 
-# 福帮手长文档写作工具（FBS-Writer）
+# 福帮手长文档写作工具（FBS-BookWriter-LRZ）
 
 > **版本**：2.1.2
 > **通道**：OpenClaw 全量适配版
-> **说明**：本技能基于 fbs-bookwriter v2.1.2 移植，OpenClaw 环境全量适配。WorkBuddy 依赖已做动态降级，非 WorkBuddy 宿主下静默跳过不报错。
+> **说明**：本技能基于 fbs-bookwriter-lrz v2.1.2 移植，OpenClaw 环境全量适配。WorkBuddy 依赖已做动态降级，非 WorkBuddy 宿主下静默跳过不报错。
 
 ---
 
@@ -125,7 +125,7 @@ node scripts/<script>.mjs ... > /dev/null 2>&1
 
 | 操作 | 同步时机 |
 |---|---|
-| 修改 `E:\github\fbs-writer\SKILL.md` 后 | 仅在用户确认或下次写作会话前同步到安装目录 |
+| 修改 `E:\github\fbs-bookwriter-lrz\SKILL.md` 后 | 仅在用户确认或下次写作会话前同步到安装目录 |
 | 修改脚本文件（.mjs/.js）后 | 仅在相关功能首次被触发前同步 |
 | 其他素材文件（.md/.json） | 不同步安装目录，仅操作书稿根目录 |
 

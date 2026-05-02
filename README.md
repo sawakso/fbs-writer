@@ -1,8 +1,8 @@
-# 📖 FBS-Writer - 高质量长文档手稿工具链
+# 📖 FBS-BookWriter-LRZ - 高质量长文档手稿工具链
 
 > **定位**：高质量长文档手稿工具链 —— 专业级手稿（非终稿），人在循环中引领、把关、担责
 
-[![Version](https://img.shields.io/badge/version-2.1.2-blue.svg)](https://github.com/sawakso/fbs-writer)
+[![Version](https://img.shields.io/badge/version-2.1.2-blue.svg)](https://github.com/sawakso/fbs-bookwriter-lrz)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-WorkBuddy%20%7C%20OpenClaw%20%7C%20CodeBuddy-blue.svg)](#多平台支持)
@@ -31,9 +31,9 @@
 
 | 平台 | 安装方式 |
 |------|----------|
-| **WorkBuddy** | 在技能管理中搜索 `fbs-writer`，点击安装 |
-| **OpenClaw** | 在技能市场中搜索 `fbs-writer`，点击安装 |
-| **CodeBuddy** | 在插件市场中搜索 `fbs-writer`，点击安装 |
+| **WorkBuddy** | 在技能管理中搜索 `fbs-bookwriter-lrz`，点击安装 |
+| **OpenClaw** | 在技能市场中搜索 `fbs-bookwriter-lrz`，点击安装 |
+| **CodeBuddy** | 在插件市场中搜索 `fbs-bookwriter-lrz`，点击安装 |
 
 ### 方式二：手动安装
 
@@ -41,10 +41,10 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/sawakso/fbs-writer.git ~/.workbuddy/skills/fbs-writer
+git clone https://github.com/sawakso/fbs-bookwriter-lrz.git ~/.workbuddy/skills/fbs-bookwriter-lrz
 
 # 安装依赖
-cd ~/.workbuddy/skills/fbs-writer
+cd ~/.workbuddy/skills/fbs-bookwriter-lrz
 npm install
 ```
 
@@ -52,10 +52,10 @@ npm install
 
 ```bash
 # 克隆仓库
-git clone https://github.com/sawakso/fbs-writer.git ~/.openclaw/skills/fbs-writer
+git clone https://github.com/sawakso/fbs-bookwriter-lrz.git ~/.openclaw/skills/fbs-bookwriter-lrz
 
 # 安装依赖
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 npm install
 ```
 
@@ -63,10 +63,10 @@ npm install
 
 ```bash
 # 克隆仓库
-git clone https://github.com/sawakso/fbs-writer.git .codebuddy/skills/fbs-writer
+git clone https://github.com/sawakso/fbs-bookwriter-lrz.git .codebuddy/skills/fbs-bookwriter-lrz
 
 # 安装依赖
-cd .codebuddy/skills/fbs-writer
+cd .codebuddy/skills/fbs-bookwriter-lrz
 npm install
 ```
 
@@ -107,7 +107,7 @@ FBS-Writer 采用六阶段写作流程：
 | 平台 | 识别文件 | 状态 |
 |------|---------|------|
 | WorkBuddy | `SKILL.md` | ✅ 支持 |
-| OpenClaw | `openclaw/fbs-writer/skill.json` | ✅ 支持 |
+| OpenClaw | `openclaw/fbs-bookwriter-lrz/skill.json` | ✅ 支持 |
 | CodeBuddy | `.codebuddy-plugin/plugin.json` | ✅ 支持 |
 
 ### 核心能力
@@ -123,9 +123,9 @@ FBS-Writer 采用六阶段写作流程：
 
 > **原则**：保持语义不变，可加后缀区分测试版本
 
-- ✅ 推荐：`fbs-writer-lzz`（lzz 为测试后缀）
-- ✅ 推荐：`fbs-writer-v212-test`
-- ❌ 禁止：`fbs-writer-book`（改变"book"语义）
+- ✅ 推荐：`fbs-bookwriter-lzz`（lzz 为测试后缀）
+- ✅ 推荐：`fbs-bookwriter-v212-test`
+- ❌ 禁止：`fbs-bookwriter-book`（改变"book"语义）
 - ❌ 禁止：`writer-tool`（简化导致失去细分定位）
 
 ---
@@ -144,5 +144,5 @@ MIT License
 
 ## 📮 联系
 
-- 问题反馈：[GitHub Issues](https://github.com/sawakso/fbs-writer/issues)
-- 讨论区：[GitHub Discussions](https://github.com/sawakso/fbs-writer/discussions)
+- 问题反馈：[GitHub Issues](https://github.com/sawakso/fbs-bookwriter-lrz/issues)
+- 讨论区：[GitHub Discussions](https://github.com/sawakso/fbs-bookwriter-lrz/discussions)

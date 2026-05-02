@@ -546,6 +546,6 @@ Promise.race([
   .then(({ tryMain }) => tryMain(main, { friendlyName: '质量审计' }))
   .catch((err) => {
     console.error('❌ 无法加载错误处理模块:', err.message);
-    console.error('   请确保 fbs-writer 正确安装');
+    console.error('   请确保 fbs-bookwriter-lrz 正确安装');
     process.exit(1);
   });

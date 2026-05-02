@@ -381,7 +381,7 @@ if (process.argv[1] && process.argv[1].endsWith('export-to-pdf.mjs')) {
     });
   } catch (importErr) {
     console.error('❌ 无法加载错误处理模块:', importErr.message);
-    console.error('   请确保 fbs-writer 正确安装，且 ./lib/user-errors.mjs 文件存在');
+    console.error('   请确保 fbs-bookwriter-lrz 正确安装，且 ./lib/user-errors.mjs 文件存在');
     process.exit(1);
   }
 }

@@ -1,15 +1,15 @@
 ---
-name: fbs-writer
+name: fbs-bookwriter-lrz
 version: 2.1.2
-plugin-id: fbs-writer-v212
-description: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材"
+plugin-id: fbs-bookwriter-lrz-v212
+description: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册，白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材"
 scene-packs: [general, genealogy, consultant, ghostwriter, training, personal-book, whitepaper, report]
 user-invocable: true
 ui-actions: true
-metadata: {"openclaw":{"emoji":"📖","name":"fbs-writer","skillKey":"fbs-writer","requires":{"bins":["node"]}}}
+metadata: {"openclaw":{"emoji":"📖","name":"fbs-bookwriter-lrz","skillKey":"fbs-bookwriter-lrz","requires":{"bins":["node"]}}}
 ---
 
-# 福帮手长文档写作工具（FBS-Writer）
+# 福帮手长文档写作工具（FBS-BookWriter-LRZ）
 
 > **版本**：2.1.2
 > **定位**：高质量长文档**手稿**工具链
@@ -82,19 +82,19 @@ metadata: {"openclaw":{"emoji":"📖","name":"fbs-writer","skillKey":"fbs-writer
 
 | 模块 | 路径 | 功能 |
 |------|------|------|
-| 上下文映射 | `openclaw/fbs-writer/adapter/context-mapper.mjs` | WorkBuddy ↔ OpenClaw 上下文转换 |
-| 结果格式化 | `openclaw/fbs-writer/adapter/result-formatter.mjs` | 脚本输出格式适配 |
+| 上下文映射 | `openclaw/fbs-bookwriter-lrz/adapter/context-mapper.mjs` | WorkBuddy ↔ OpenClaw 上下文转换 |
+| 结果格式化 | `openclaw/fbs-bookwriter-lrz/adapter/result-formatter.mjs` | 脚本输出格式适配 |
 | 宿主桥接 | `scripts/lib/openclaw-host-bridge.mjs` | OpenClaw 宿主能力检测 |
-| 技能配置 | `openclaw/fbs-writer/skill.json` | OpenClaw 标准技能配置 |
+| 技能配置 | `openclaw/fbs-bookwriter-lrz/skill.json` | OpenClaw 标准技能配置 |
 
 ---
 
 ## 文件结构
 
 ```
-fbs-writer/
+fbs-bookwriter-lrz/
 ├── openclaw/                    # OpenClaw 适配层
-│   └── fbs-writer/
+│   └── fbs-bookwriter-lrz/
 │       ├── skill.json          # 技能配置
 │       └── adapter/            # 适配器
 │           ├── context-mapper.mjs    # 上下文映射

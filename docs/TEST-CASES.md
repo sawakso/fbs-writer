@@ -262,7 +262,7 @@ assert: 输出包含预估剩余时间（如「剩余 2 分钟」）
 | # | 测试场景 | 预期结果 | 实际结果 | 状态 |
 |---|---------|---------|---------|------|
 | 7.1 | WorkBuddy 导入技能 | 正确读取 `SKILL.md`，显示触发词和意图菜单 | | ⏳ |
-| 7.2 | OpenClaw 导入技能 | 正确读取 `openclaw/fbs-writer/skill.json`，显示技能信息 | | ⏳ |
+| 7.2 | OpenClaw 导入技能 | 正确读取 `openclaw/fbs-bookwriter-lrz/skill.json`，显示技能信息 | | ⏳ |
 | 7.3 | CodeBuddy 导入插件 | 正确读取 `.codebuddy-plugin/plugin.json`，显示插件信息 | | ⏳ |
 | 7.4 | WorkBuddy 执行脚本 | 脚本正常执行，输出抑制规则生效（无原始 stdout） | | ⏳ |
 | 7.5 | OpenClaw 执行脚本 | 脚本正常执行，适配层正确格式化结果 | | ⏳ |
@@ -272,7 +272,7 @@ assert: 输出包含预估剩余时间（如「剩余 2 分钟」）
 
 ```bash
 # 1. 在 WorkBuddy 中导入技能
-# （手动操作）打开 WorkBuddy → 技能管理 → 本地安装 → 选择 E:/github/fbs-writer/
+# （手动操作）打开 WorkBuddy → 技能管理 → 本地安装 → 选择 E:/github/fbs-bookwriter-lrz/
 
 # 2. 验证导入成功
 assert: WorkBuddy 显示技能名称「福帮手长文档写作工具」

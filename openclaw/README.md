@@ -1,4 +1,4 @@
-# FBS-Writer OpenClaw 适配版
+# FBS-BookWriter-LRZ OpenClaw 适配版
 
 > 福帮手长文档**手稿**工具链 v2.1.2 — OpenClaw 原生适配版
 
@@ -21,7 +21,7 @@
 ## 📁 目录结构
 
 ```
-openclaw/fbs-writer/
+openclaw/fbs-bookwriter-lrz/
 ├── skill.json              # OpenClaw 标准技能配置
 ├── SKILL.md               # OpenClaw 专用入口文档
 ├── index.mjs              # 适配层索引
@@ -38,17 +38,17 @@ openclaw/fbs-writer/
 ### 方式一：从 OpenClaw 技能市场安装（推荐）
 
 1. 打开 OpenClaw 技能管理
-2. 搜索 `fbs-writer`
+2. 搜索 `fbs-bookwriter-lrz`
 3. 点击安装
 
 ### 方式二：手动安装
 
 ```bash
 # 克隆仓库到 OpenClaw 技能目录
-git clone https://github.com/sawakso/fbs-writer.git ~/.openclaw/skills/fbs-writer
+git clone https://github.com/sawakso/fbs-bookwriter-lrz.git ~/.openclaw/skills/fbs-bookwriter-lrz
 
 # 安装依赖
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 npm install
 
 # 安装可选导出依赖
@@ -59,7 +59,7 @@ npm install puppeteer     # PDF 导出（约 300MB）
 ### 验证安装
 
 ```bash
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 
 # 环境预检
 node scripts/env-preflight.mjs --json
@@ -86,7 +86,7 @@ node scripts/lib/openclaw-host-bridge.mjs --detect
 | 特性 | WorkBuddy 版 | OpenClaw 版 |
 |------|--------------|-------------|
 | 技能格式 | `SKILL.md` (YAML frontmatter) | `skill.json` (OpenClaw 标准) |
-| 入口文档 | 根目录 `SKILL.md` | `openclaw/fbs-writer/SKILL.md` |
+| 入口文档 | 根目录 `SKILL.md` | `openclaw/fbs-bookwriter-lrz/SKILL.md` |
 | 适配层 | 无（原生） | 有（`adapter/`） |
 | 宿主检测 | 基础 | 增强（三平台识别） |
 | 结果格式 | 直接输出 | 适配层格式化 |

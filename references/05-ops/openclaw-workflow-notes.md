@@ -10,11 +10,11 @@
 ```bash
 # 浅克隆（节省内存）
 cd /tmp
-git clone --depth 1 --single-branch https://github.com/sawakso/fbs-writer.git
-mv /tmp/fbs-writer/fbs-writer ~/.openclaw/skills/fbs-writer
+git clone --depth 1 --single-branch https://github.com/sawakso/fbs-bookwriter-lrz.git
+mv /tmp/fbs-bookwriter-lrz/fbs-bookwriter-lrz ~/.openclaw/skills/fbs-bookwriter-lrz
 
 # 安装生产依赖（跳过 puppeteer 下载）
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev --no-audit --no-fund
 
 # 环境预检
@@ -32,7 +32,7 @@ BOOK_ROOT="/root/.openclaw/workspace/books/<项目名>"
 mkdir -p "$BOOK_ROOT"
 
 # Step 1: 意图路由
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 node scripts/intake-router.mjs \
   --book-root "$BOOK_ROOT" \
   --intent auto \
@@ -77,7 +77,7 @@ chapters/              ← 书稿章节（手工创建）
 ### 4.1 导出 HTML
 ```bash
 # 用 markdown-it 将 MD 转 HTML
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 node -e "
 import fs from 'fs';
 import MarkdownIt from 'markdown-it';
@@ -90,7 +90,7 @@ fs.writeFileSync('$BOOK_ROOT/chapters/01-xxx.html', html);
 
 ### 4.2 导出 DOCX
 ```bash
-cd ~/.openclaw/skills/fbs-writer
+cd ~/.openclaw/skills/fbs-bookwriter-lrz
 node scripts/export-to-docx.mjs \
   "$BOOK_ROOT/chapters/01-xxx.md" \
   "$BOOK_ROOT/chapters/01-xxx.docx" \
@@ -149,7 +149,7 @@ node scripts/intake-router.mjs --book-root $BOOK_ROOT --intent auto --json --enf
 # S0 → S1
 node scripts/s0-exit-gate.mjs --book-root $BOOK_ROOT --json --confirm-advance
 # S3.5 扩写前
-node scripts/expansion-gate.mjs --book-root $BOOK_ROOT --skill-root ~/.openclaw/skills/fbs-writer
+node scripts/expansion-gate.mjs --book-root $BOOK_ROOT --skill-root ~/.openclaw/skills/fbs-bookwriter-lrz
 # S3.7 精修前
 node scripts/polish-gate.mjs --book-root $BOOK_ROOT
 ```

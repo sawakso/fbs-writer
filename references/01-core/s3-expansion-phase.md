@@ -23,7 +23,7 @@
 | **扩写计划** | 必须先创建或更新 `.fbs/expansion-plan.md`，并经 **用户确认**（对话中明确「同意按此计划执行」或等价表述） |
 | **素材对齐** | 计划中每章须标注素材充足度：`充足` / `偏少` / `需先补 S0`；指标（如「引语≥8处」）不得超过 `material-library.md` 可支撑范围 |
 | **并行度** | **写作类扩写**并行 **≤3**（`fbs-runtime-hints.json` → `s3.maxParallelExpansionChapters`）；**推荐 ≤2**（`recommendedParallelExpansionChapters`）以降低风格漂移；禁止超过上限同时扩写正文 |
-| **子智能体** | **禁止**使用 `code-explorer` 或纯代码探索类 subagent 承担正文扩写；扩写由 `fbs-writer` / team-lead 或宿主明示的写作类角色执行 |
+| **子智能体** | **禁止**使用 `code-explorer` 或纯代码探索类 subagent 承担正文扩写；扩写由 `fbs-bookwriter-lrz` / team-lead 或宿主明示的写作类角色执行 |
 | **共享上下文** | 每路扩写前注入：`book-context-brief.md`、`术语锁定记录.md`、品牌/合规约束；并行时尚需 **相邻章摘要** 以防论点重复 |
 | **临时文件** | 并行扩写时先写入 `[S3.5-ChNN].expanded.md`（或等价命名），**字数与质检通过后再替换** 正式章文件，避免半篇覆盖 |
 

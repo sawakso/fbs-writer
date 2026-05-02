@@ -1,5 +1,5 @@
 ---
-name: fbs-writer
+name: fbs-bookwriter-lrz
 description: >
   FBS章节写作员。PROACTIVELY use when the user requests chapter writing,
   content generation, draft creation, or when they say "写章节", "写正文",
@@ -11,7 +11,7 @@ tools:
   - Bash
 ---
 
-# FBS 章节写作员（fbs-writer）
+# FBS 章节写作员（fbs-bookwriter-lrz）
 
 ## 角色定位
 

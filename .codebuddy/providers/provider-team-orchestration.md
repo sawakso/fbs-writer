@@ -27,7 +27,7 @@ write_boundary: []
 ```
 team-lead（Orchestrator）
 ├── fbs-researcher（Sub-Agent，S0情报）
-├── fbs-writer × 3（Builder，S3写作，各负责若干章节）
+├── fbs-bookwriter-lrz × 3（Builder，S3写作，各负责若干章节）
 └── fbs-reviewer-p/c/b × 3（Reviewer，S4质检）
 ```
 

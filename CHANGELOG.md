@@ -19,7 +19,7 @@
 ### 🎉 新增
 
 - **OpenClaw 适配层**
-  - 新增 `openclaw/fbs-writer/` 目录结构
+  - 新增 `openclaw/fbs-bookwriter-lrz/` 目录结构
   - 新增 `skill.json`（OpenClaw 标准配置）
   - 新增 `adapter/context-mapper.mjs`（上下文映射器）
   - 新增 `adapter/result-formatter.mjs`（结果格式化器）

@@ -1,6 +1,6 @@
 {
   "$schema": "openclaw-skill-v1",
-  "name": "fbs-writer",
+  "name": "fbs-bookwriter-lrz",
   "version": "2.1.2",
   "description": "福帮手长文档写作工具 - 高质量书籍、手册、白皮书、行业指南全流程",
   "emoji": "📖",

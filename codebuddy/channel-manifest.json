@@ -2,8 +2,8 @@
   "$schema": "fbs-codebuddy-channel-v1",
   "channel": "codebuddy-plugin",
   "skill": {
-    "id": "fbs-writer",
-    "name": "fbs-writer",
+    "id": "fbs-bookwriter-lrz",
+    "name": "fbs-bookwriter-lrz",
     "displayName": "福帮手：高质量长文档手稿工具链",
     "version": "2.1.2"
   },
@@ -68,7 +68,7 @@
     "included": [
       "fbs-team-lead.md",
       "fbs-researcher.md",
-      "fbs-writer.md",
+      "fbs-bookwriter-lrz.md",
       "fbs-reviewer-p.md",
       "fbs-reviewer-c.md",
       "fbs-reviewer-b.md"
@@ -82,7 +82,7 @@
     "orgFeedbackDir": ".fbs/org-feedback"
   },
   "distribution": {
-    "primaryPackage": "dist/fbs-writer-v212-codebuddy.zip",
+    "primaryPackage": "dist/fbs-bookwriter-lrz-v212-codebuddy.zip",
     "reviewNote": "releases/codebuddy-review-v2.1.2.md",
     "meta": "_plugin_meta.json"
   }

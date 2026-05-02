@@ -39,7 +39,7 @@
 |------|------|
 | 章成稿 | 每人仅写分配章节路径；禁止覆盖他人文件除非走合稿分支流程。 |
 | `.fbs/search-ledger.jsonl` | **追加** JSONL；冲突字段用新行说明更正，不原地篡改历史行（便于审计）。 |
-| `.fbs/writing-notes/{chapterId}.brief.md` / `report-brief.md` | 由 `fbs-writer` 或 `team-lead` 维护，作为章节 / 报告写作简报；researcher 不得覆盖。 |
+| `.fbs/writing-notes/{chapterId}.brief.md` / `report-brief.md` | 由 `fbs-bookwriter-lrz` 或 `team-lead` 维护，作为章节 / 报告写作简报；researcher 不得覆盖。 |
 | `.fbs/writing-notes/*-research.brief.md` | researcher 独占；仅写研究摘要、检索发现和证据备注。 |
 | `.fbs/writing-notes/*-draft.md` | writer 独占；仅写起草备注、段落实验和重写草稿。 |
 | `术语锁定记录.md` | 主编或单一「术语 Owner」合并；Writer 只追加「建议」或 PR 式说明节。 |

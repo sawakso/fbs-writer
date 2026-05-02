@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * OpenClaw 技能包：fbs-writer（全量适配版）
- * 使用 openclaw/fbs_bookwriter/SKILL.md 作为入口，name 字段为 fbs-writer
- * 产物：dist/fbs-writer-v212-openclaw.zip
+ * OpenClaw 技能包：fbs-bookwriter-lrz（全量适配版）
+ * 使用 openclaw/fbs_bookwriter/SKILL.md 作为入口，name 字段为 fbs-bookwriter-lrz
+ * 产物：dist/fbs-bookwriter-lrz-v212-openclaw.zip
  */
 import { fileURLToPath } from 'url';
 import { runChannelPack } from './lib/channel-pack.mjs';
@@ -10,8 +10,8 @@ import { runChannelPack } from './lib/channel-pack.mjs';
 export function runOpenClawPack() {
   return runChannelPack({
     version: '2.1.2',
-    packageName: 'fbs-writer-v212-openclaw',
-    packageRootName: 'fbs-writer',
+    packageName: 'fbs-bookwriter-lrz-v212-openclaw',
+    packageRootName: 'fbs-bookwriter-lrz',
     channelLabel: 'OpenClaw',
     skillMdOverride: 'openclaw/fbs_bookwriter/SKILL.md',
     // OpenClaw 专用的核心文件（确保打包时包含）
