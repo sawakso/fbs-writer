@@ -21,6 +21,32 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 预导入依赖（避免运行时动态导入失败导致挂起）
+let pkgDocx = null;
+let pkgHtmlToDocx = null;
+
+async function ensureDocx() {
+  if (!pkgDocx) {
+    try {
+      pkgDocx = await import('docx');
+    } catch (err) {
+      throw new Error('缺少必需依赖 "docx"，请运行：npm install docx');
+    }
+  }
+  return pkgDocx;
+}
+
+async function ensureHtmlToDocx() {
+  if (!pkgHtmlToDocx) {
+    try {
+      pkgHtmlToDocx = await import('html-to-docx');
+    } catch (err) {
+      // 可选依赖，不抛出错误
+    }
+  }
+  return pkgHtmlToDocx;
+}
+
 /**
  * Markdown 转 DOCX
  * @param {string} markdownContent - Markdown 内容
@@ -51,22 +77,27 @@ export async function markdownToDocx(markdownContent, options = {}) {
   // 方法一：尝试使用 html-to-docx
   reportProgress(10, '正在解析 Markdown...');
   try {
-    const HTMLToDOCX = (await import('html-to-docx')).default;
-    htmlContent = await markdownToHtml(markdownContent);
-    reportProgress(40, '正在转换为 DOCX...');
-    const docx = await HTMLToDOCX(htmlContent, {
-      title,
-      author,
-    });
-    docxBuffer = docx;
+    const HTMLToDOCX = (await ensureHtmlToDocx())?.default;
+    if (HTMLToDOCX) {
+      htmlContent = await markdownToHtml(markdownContent);
+      reportProgress(40, '正在转换为 DOCX...');
+      const docx = await HTMLToDOCX(htmlContent, {
+        title,
+        author,
+      });
+      docxBuffer = docx;
+    } else {
+      throw new Error('html-to-docx 未安装');
+    }
   } catch (err) {
-    console.warn('[DOCX导出] html-to-docx 失败:', err.message);
+    console.warn('[DOCX导出] html-to-docx 失败，使用备选方案:', err.message);
 
-    // 方法二：尝试使用 docx 库直接构建
+    // 方法二：使用 docx 库直接构建
     try {
       reportProgress(40, '正在使用备选方案构建 DOCX...');
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
-      const paragraphs = parseMarkdownToParagraphs(markdownContent);
+      await ensureDocx();
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = pkgDocx;
+      const paragraphs = parseMarkdownToParagraphs(markdownContent, pkgDocx);
 
       const doc = new Document({
         sections: [{
@@ -118,9 +149,11 @@ async function markdownToHtml(markdownContent) {
 
 /**
  * 解析 Markdown 为 docx 段落
+ * @param {string} markdownContent - Markdown 内容
+ * @param {object} docx - docx 模块（包含 Paragraph, TextRun, HeadingLevel 等）
  */
-function parseMarkdownToParagraphs(markdownContent) {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = require('docx');
+function parseMarkdownToParagraphs(markdownContent, docx) {
+  const { Paragraph, TextRun, HeadingLevel } = docx;
 
   const paragraphs = [];
   const lines = markdownContent.split('\n');
@@ -267,7 +300,15 @@ OpenClaw Markdown 转 DOCX 导出器
     author = args[args.indexOf('--author') + 1];
   }
 
-  import('./lib/user-errors.mjs').then(async ({ tryMain, withRetry, RetryableError }) => {
+  // 导入错误处理模块（带超时保护，避免挂起）
+  const userErrorsPromise = import('./lib/user-errors.mjs');
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('导入 user-errors.mjs 超时')), 5000);
+  });
+
+  try {
+    const { tryMain, withRetry } = await Promise.race([userErrorsPromise, timeoutPromise]);
+
     await tryMain(async () => {
       console.log(`\n📝 开始导出 DOCX`);
       console.log(`   输入文件: ${inputPath}`);
@@ -308,5 +349,9 @@ OpenClaw Markdown 转 DOCX 导出器
       friendlyName: 'DOCX 导出',
       jsonOutput: false,
     });
-  });
+  } catch (importErr) {
+    console.error('❌ 无法加载错误处理模块:', importErr.message);
+    console.error('   请确保 fbs-writer 正确安装，且 ./lib/user-errors.mjs 文件存在');
+    process.exit(1);
+  }
 }

@@ -109,5 +109,14 @@ function main() {
   }
 }
 
-// 使用 tryMain 包装，支持用户友好的错误提示
-import('./lib/user-errors.mjs').then(({ tryMain }) => tryMain(main, { friendlyName: '进度快照' }));
+// 使用 tryMain 包装，支持用户友好的错误提示（带超时保护）
+Promise.race([
+  import('./lib/user-errors.mjs'),
+  new Promise((_, reject) => setTimeout(() => reject(new Error('导入 user-errors.mjs 超时')), 5000))
+])
+  .then(({ tryMain }) => tryMain(main, { friendlyName: '进度快照' }))
+  .catch((err) => {
+    console.error('❌ 无法加载错误处理模块:', err.message);
+    console.error('   请确保 fbs-writer 正确安装');
+    process.exit(1);
+  });

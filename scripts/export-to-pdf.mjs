@@ -338,7 +338,15 @@ if (process.argv[1] && process.argv[1].endsWith('export-to-pdf.mjs')) {
     }
   };
 
-  import('./lib/user-errors.mjs').then(async ({ tryMain, withRetry, isRetryable }) => {
+  // 导入错误处理模块（带超时保护，避免挂起）
+  const userErrorsPromise = import('./lib/user-errors.mjs');
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('导入 user-errors.mjs 超时')), 5000);
+  });
+
+  try {
+    const { tryMain, withRetry, isRetryable } = await Promise.race([userErrorsPromise, timeoutPromise]);
+
     await tryMain(async () => {
       console.log(`\n📄 开始导出 PDF`);
       console.log(`   输入文件: ${inputPath}`);
@@ -371,5 +379,9 @@ if (process.argv[1] && process.argv[1].endsWith('export-to-pdf.mjs')) {
       friendlyName: 'PDF 导出',
       jsonOutput: false,
     });
-  });
+  } catch (importErr) {
+    console.error('❌ 无法加载错误处理模块:', importErr.message);
+    console.error('   请确保 fbs-writer 正确安装，且 ./lib/user-errors.mjs 文件存在');
+    process.exit(1);
+  }
 }
