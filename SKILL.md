@@ -432,14 +432,24 @@ node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1
 **步骤1：评估项目规模**
 检查 `project-config.json` 的总字数与总章数。若全书总字数 ≥ 3万字 或 总章数 ≥ 10章，则为"大型项目"。若为扩写/补写已有章节，同样适用此规则。
 
-**步骤2：展示时间预估并等待用户确认**
+**步骤2：读取时间跟踪数据（真实校准优先）**
+
+```bash
+node scripts/record-duration.mjs --action show --book-root <bookRoot>
+```
+
+- 如果已有记录（≥3条），使用实际平均耗时
+- 如果记录不足，使用回退值（扩写150秒/章，新写90秒/章）
+
+**步骤3：展示时间预估并等待用户确认**
 
 ```
 📖 书名：{书名}
 📊 当前进度：{已完成章数}/{总章数} 章（✅ {达标章数}章达标 / ⚠️ {欠字章数}章待扩充）
-⏱️ 预估总用时：约 {N} 分钟
+⏱️ 预估总用时：约 {N} 分钟（{剩余章数}章 × {平均耗时}秒/章）
 ⏳ 预计剩余：约 {R} 分钟
 📈 差额：-{欠字数} 字
+📊 耗时数据：{记录条数}条真实记录
 
 开始写稿？[确认/取消]
 ```
@@ -498,6 +508,19 @@ node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1
 
 #### 🕐 S3 写稿中的字数自查（P0 强制，每章执行）
 
+**每章写稿流程（强制执行）：**
+
+```bash
+# 第1步：开始计时
+node scripts/record-duration.mjs --action start --chapter <编号> --book-root <bookRoot>
+
+# 第2步：写稿/扩写章节内容
+# （工具调用限制：单章最多2轮）
+
+# 第3步：写完并审计通过后，结束计时
+node scripts/record-duration.mjs --action end --chapter <编号> --book-root <bookRoot>
+```
+
 **写完每章后，必须在回复中附带字数状态行：**
 
 ```
@@ -537,15 +560,24 @@ node scripts/chapter-wordcount-audit.mjs --book-root <bookRoot> --json > /tmp/wc
 2. 列出所有⚠️章节清单，按欠字从多到少排序
 3. 逐一扩充，直到 `totalDeficit ≤ 0` 再恢复写新章
 
-**预估算法（已根据实测校准）：**
+**预估算法（优先真实数据，不足则用回退值）：**
 
 ```
-全书预估时间（分钟）= 预估总字数 / 1000 × 0.5
-单章平均耗时（分钟）= 已完成章节的平均耗时（首次按 0.5 分钟估算）
-剩余时间（分钟）= 剩余章节数 × 单章平均耗时
+# 优先：读取 .fbs/time-tracking.json 中的 averages.{mode}
+#        如果该模式已有 ≥3 条记录，使用实际平均耗时
+#        如：实际平均 192 秒/章 = 3.2 分钟/章
+
+# 回退：无数据或记录不足时
+#        扩写模式：150 秒/章（2.5 分钟）
+#        新写模式：90 秒/章（1.5 分钟）
+
+# 剩余时间（分钟）= 剩余章数 × 单章平均耗时（秒） / 60
 ```
 
-⚠️ **旧公式 `字数/1000×2` 已废弃**（偏差5倍）
+查看当前耗时数据：
+```bash
+node scripts/record-duration.mjs --show --book-root <bookRoot>
+```
 
 **Part（卷）预估格式（适用于分卷书稿）：**
 
