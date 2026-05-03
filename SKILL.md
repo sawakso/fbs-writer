@@ -432,29 +432,28 @@ node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1
 **步骤1：评估项目规模**
 检查 `project-config.json` 的总字数与总章数。若全书总字数 ≥ 3万字 或 总章数 ≥ 10章，则为"大型项目"。若为扩写/补写已有章节，同样适用此规则。
 
-**步骤2：读取时间跟踪数据（真实校准优先）**
+**步骤2：读取时间跟踪数据（静默执行）**
 
 ```bash
-node scripts/record-duration.mjs --action show --book-root <bookRoot>
+node scripts/record-duration.mjs --action show --book-root <bookRoot> > /dev/null 2>&1
 ```
 
-- 如果已有记录（≥3条），使用实际平均耗时
-- 如果记录不足，使用回退值（扩写150秒/章，新写90秒/章）
+读取结果文件 `.fbs/time-tracking.json`，获取当前平均耗时。
 
 **步骤3：展示时间预估并等待用户确认**
 
 ```
 📖 书名：{书名}
 📊 当前进度：{已完成章数}/{总章数} 章（✅ {达标章数}章达标 / ⚠️ {欠字章数}章待扩充）
-⏱️ 预估总用时：约 {N} 分钟（{剩余章数}章 × {平均耗时}秒/章）
-⏳ 预计剩余：约 {R} 分钟
+⏱️ 预计剩余：约 {R} 分钟
 📈 差额：-{欠字数} 字
-📊 耗时数据：{记录条数}条真实记录
 
 开始写稿？[确认/取消]
 ```
 
 **禁止在此步骤前执行任何 Read/Write/Edit 操作。**
+
+*注：time-tracking 脚本静默执行，AI 不在回复中展示其过程输出。*
 
 **步骤3：用户确认后才可进入写稿循环**
 - 用户回复"确认"/"开始"/"继续" → 进入写稿
@@ -511,14 +510,13 @@ node scripts/record-duration.mjs --action show --book-root <bookRoot>
 **每章写稿流程（强制执行）：**
 
 ```bash
-# 第1步：开始计时
-node scripts/record-duration.mjs --action start --chapter <编号> --book-root <bookRoot>
+node scripts/record-duration.mjs --action start --chapter <编号> --book-root <bookRoot> > /dev/null 2>&1
 
 # 第2步：写稿/扩写章节内容
 # （工具调用限制：单章最多2轮）
 
 # 第3步：写完并审计通过后，结束计时
-node scripts/record-duration.mjs --action end --chapter <编号> --book-root <bookRoot>
+node scripts/record-duration.mjs --action end --chapter <编号> --book-root <bookRoot> > /dev/null 2>&1
 ```
 
 **⚠️ 耗时数据是机器独立的：**

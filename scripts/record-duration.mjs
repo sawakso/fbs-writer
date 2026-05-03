@@ -84,13 +84,16 @@ function parseArgs() {
     process.exit(1);
   }
 
+  // 读取静默模式参数（默认静默，--verbose 开启过程输出）
+  let verbose = args.includes('--verbose');
+
   // start 和 end 需要 --chapter，show 不需要
   if ((action === 'start' || action === 'end') && !chapter) {
     console.error('错误：start 和 end 操作需要 --chapter 参数');
     process.exit(1);
   }
 
-  return { action, chapter, bookRoot };
+  return { action, chapter, bookRoot, verbose };
 }
 
 // ===== 文件路径辅助 =====
@@ -235,7 +238,7 @@ function countRecordsByType(tracking, projectType, mode) {
 
 // ===== 主逻辑 =====
 function main() {
-  const { action, chapter, bookRoot } = parseArgs();
+  const { action, chapter, bookRoot, verbose } = parseArgs();
   const timingDir = getTimingDir(bookRoot);
 
   if (action === 'start') {
@@ -247,7 +250,7 @@ function main() {
     const now = Math.floor(Date.now() / 1000);
     fs.writeFileSync(getStartFilePath(bookRoot, chapter), String(now), 'utf-8');
     const mode = detectMode(bookRoot, chapter);
-    console.log(`📝 第${chapter}章 ${mode === 'expansion' ? '扩写' : '新写'} 开始`);
+    if (verbose) console.log(`📝 第${chapter}章 ${mode === 'expansion' ? '扩写' : '新写'} 开始`);
 
   } else if (action === 'end') {
     // ===== END：计算耗时，写入记录 =====
@@ -303,8 +306,10 @@ function main() {
     const typeRecordCount = countRecordsByType(tracking, projectType, mode);
     const minutes = (duration / 60).toFixed(1);
     const typeLabel = mode === 'expansion' ? '扩写平均' : '新写平均';
-    console.log(`✅ 第${chapter}章完成 | 耗时: ${duration}秒 (${minutes}分钟)`);
-    console.log(`📊 项目类型: ${projectType} | ${typeLabel}: ${avgVal}秒 (${typeRecordCount}条记录)`);
+    if (verbose) {
+      console.log(`✅ 第${chapter}章完成 | 耗时: ${duration}秒 (${minutes}分钟)`);
+      console.log(`📊 项目类型: ${projectType} | ${typeLabel}: ${avgVal}秒 (${typeRecordCount}条记录)`);
+    }
 
   } else if (action === 'show') {
     // ===== SHOW：展示当前预估数据 =====
