@@ -521,6 +521,11 @@ node scripts/record-duration.mjs --action start --chapter <编号> --book-root <
 node scripts/record-duration.mjs --action end --chapter <编号> --book-root <bookRoot>
 ```
 
+**⚠️ 耗时数据是机器独立的：**
+`time-tracking.json` 存在书稿的 `.fbs/` 目录下，不跟随 SKILL 代码仓库。
+每台机器的写稿速度不同（CPU/网络/模型延迟各异），数据天然隔离。
+如果书稿目录被 git 管理，建议在 `.gitignore` 中添加 `.fbs/time-tracking.json` 防止同步。
+
 **写完每章后，必须在回复中附带字数状态行：**
 
 ```
