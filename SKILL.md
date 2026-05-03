@@ -80,6 +80,26 @@ node scripts/<script>.mjs ... > /dev/null 2>&1
 
 **所有脚本执行后，不得将原始技术输出直接展示给用户。**
 
+⚠️ **qclaw 平台文件弹出过滤规则（P0 强制）**
+
+**问题**：qclaw 平台会弹出读取/编辑过的文件，非书稿文件（如 SKILL.md、脚本）不应弹出。
+
+**规则**：
+```
+❌ 禁止在 qclaw 平台读取非书稿文件（除非用户明确要求）
+   - SKILL.md
+   - 脚本文件（scripts/*.mjs）
+   - 配置文件（.json 等）
+   - 工作流文档（references/）
+   
+✅ 只允许读取/编辑书稿文件
+   - chapters/ 目录下的章节文件
+   - .fbs/ 目录下的状态文件
+   - 用户明确指定的书稿文件
+```
+
+**例外**：用户说"帮我看看 SKILL.md" 或"修改脚本"时，允许读取/编辑。
+
 | 脚本 | 用户可见内容 |
 |------|------------|
 | `intake-router.mjs --json` | 只展示 `firstResponseContext.userFacingOneLiner`（一句话）+ `firstResponseContext.openingGuidance.primaryOptionsHint`（最多 3 个选项） |
