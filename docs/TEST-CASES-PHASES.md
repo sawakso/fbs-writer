@@ -1,4 +1,4 @@
-# FBS-BookWriter 分阶段测试用例
+# FBS-BookWriter-LRZ 分阶段测试用例
 
 > 本文档包含 FBS-BookWriter v2.1.2 各阶段的完整测试用例，配合 OpenClaw 适配层使用。
 > 适用版本：v2.1.2+
