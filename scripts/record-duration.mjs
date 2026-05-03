@@ -3,29 +3,42 @@
  * record-duration.mjs
  * FBS-BookWriter v2.1.2 | OpenClaw 适配
  *
- * 功能：记录每章写稿耗时，用真实数据校准预估时间
+ * 功能：记录每章写稿耗时，按项目类型（小说/白皮书/报道）分别统计
+ *       用真实数据校准预估时间，越用越准
  *
  * 用法：
  *   开始计时：node scripts/record-duration.mjs --action start --chapter 42 --book-root <书稿根目录>
  *   结束计时：node scripts/record-duration.mjs --action end   --chapter 42 --book-root <书稿根目录>
+ *   查看统计：node scripts/record-duration.mjs --action show  --book-root <书稿根目录>
  *
  * 原理：
  *   start 时记录当前时间戳到 `.fbs/_timing/{chapter}.start`
  *   end   时读取时间戳，计算耗时（秒），写入 `.fbs/time-tracking.json`
- *   每次写入后重算各模式下的平均耗时，供 S3 入口预检使用
+ *   自动读取 project-config.json 的 genreTag 作为项目类型
+ *   平均值按"项目类型 + 模式（扩写/新写）"分组
+ *   够3条记录才启用实际平均值，避免偶然偏差
  *
  * 数据文件结构（.fbs/time-tracking.json）：
  *   {
  *     "records": [
- *       { "chapter": 42, "mode": "expansion", "duration": 180, "oldChars": 850, "newChars": 3107 }
- *     ],
- *     "averages": {
- *       "expansion": null,       // 扩写模式平均秒数，够3条记录后才算
- *       "new_write": null,       // 新写模式平均秒数，够3条记录后才算
- *       "fallback": {            // 无数据时的回退值
- *         "expansion": 150,      // 扩写：2.5分钟
- *         "new_write": 90        // 新写：1.5分钟
+ *       {
+ *         "chapter": 42,
+ *         "mode": "expansion",
+ *         "projectType": "现实题材-成长小说",
+ *         "duration": 180,
+ *         "oldChars": 850,
+ *         "newChars": 3107
  *       }
+ *     ],
+ *     "averagesByType": {
+ *       "现实题材-成长小说": {
+ *         "expansion": 192,      // 够3条后的实际平均秒数
+ *         "new_write": null       // 不够3条则为 null
+ *       }
+ *     },
+ *     "fallback": {              // 无数据时的回退值
+ *       "expansion": 150,       // 扩写：2.5分钟
+ *       "new_write": 90         // 新写：1.5分钟
  *     }
  *   }
  */
@@ -36,7 +49,7 @@ import path from 'path';
 // ===== 参数解析 =====
 function parseArgs() {
   const args = process.argv.slice(2);
-  let action = null;      // 'start' 或 'end'
+  let action = null;      // 'start'、'end' 或 'show'
   let chapter = null;     // 章节号
   let bookRoot = null;    // 书稿根目录
 
@@ -56,7 +69,7 @@ function parseArgs() {
         console.log(`用法：
   node scripts/record-duration.mjs --action start --chapter 42 --book-root <路径>
   node scripts/record-duration.mjs --action end   --chapter 42 --book-root <路径>
-  node scripts/record-duration.mjs --show         --book-root <路径>`);
+  node scripts/record-duration.mjs --action show  --book-root <路径>`);
         process.exit(0);
     }
   }
@@ -93,6 +106,26 @@ function getTrackingFilePath(bookRoot) {
   return path.join(bookRoot, '.fbs', 'time-tracking.json');
 }
 
+function getProjectConfigPath(bookRoot) {
+  return path.join(bookRoot, '.fbs', 'project-config.json');
+}
+
+// ===== 读取项目类型 =====
+// 从 project-config.json 的 genreTag 字段获取项目类型
+// 如果读取失败或字段不存在，返回 'unknown'
+function readProjectType(bookRoot) {
+  try {
+    const configPath = getProjectConfigPath(bookRoot);
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      return config.genreTag || 'unknown';
+    }
+  } catch {
+    // 配置文件不存在或解析失败，不影响主流程
+  }
+  return 'unknown';
+}
+
 // ===== 读取/初始化 time-tracking.json =====
 function loadTracking(bookRoot) {
   const filePath = getTrackingFilePath(bookRoot);
@@ -102,13 +135,10 @@ function loadTracking(bookRoot) {
     // 文件不存在或解析失败，返回默认结构
     return {
       records: [],
-      averages: {
-        expansion: null,
-        new_write: null,
-        fallback: {
-          expansion: 150,
-          new_write: 90
-        }
+      averagesByType: {},
+      fallback: {
+        expansion: 150,
+        new_write: 90
       }
     };
   }
@@ -125,37 +155,46 @@ function saveTracking(bookRoot, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-// ===== 重新计算各模式平均耗时 =====
+// ===== 重新计算各项目类型 + 各模式的平均耗时 =====
 function recalcAverages(tracking) {
-  const modes = { expansion: [], new_write: [] };
+  // 按 projectType + mode 分组
+  const groups = {};
 
-  // 按模式分组，只取有 oldChars 和 newChars 的完整记录
   for (const r of tracking.records) {
-    if (r.mode === 'expansion' && r.duration && r.oldChars !== undefined) {
-      modes.expansion.push(r.duration);
-    } else if (r.mode === 'new_write' && r.duration) {
-      modes.new_write.push(r.duration);
-    }
+    // 只使用有完整 duration 的记录
+    if (!r.duration) continue;
+
+    const key = `${r.projectType || 'unknown'}::${r.mode}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r.duration);
   }
 
-  // 够3条记录才算平均值，避免偶然偏差
-  for (const [mode, durations] of Object.entries(modes)) {
+  // 重算 averagesByType
+  tracking.averagesByType = {};
+
+  for (const [key, durations] of Object.entries(groups)) {
+    const [projectType, mode] = key.split('::');
+
+    // 初始化该类型的对象
+    if (!tracking.averagesByType[projectType]) {
+      tracking.averagesByType[projectType] = { expansion: null, new_write: null };
+    }
+
+    // 够3条记录才算平均值，避免单次偶然偏差
     if (durations.length >= 3) {
       const sum = durations.reduce((a, b) => a + b, 0);
-      tracking.averages[mode] = Math.round(sum / durations.length);
+      tracking.averagesByType[projectType][mode] = Math.round(sum / durations.length);
     }
-    // 不够3条时保持 null，SKILL 会自动用 fallback 值
   }
 }
 
-// ===== 获取当前某章字数（用于记录扩写前后变化）=====
+// ===== 获取当前某章字数 =====
 function getChapterCharCount(bookRoot, chapter) {
-  // 尝试匹配 S3-Ch{编号}-*.md 文件
   const chaptersDir = path.join(bookRoot, 'chapters');
   if (!fs.existsSync(chaptersDir)) return null;
 
   const files = fs.readdirSync(chaptersDir);
-  // 匹配两种命名格式：S3-Ch42-*.md 或 42-*.md 或 第42章-*.md
+  // 匹配多种命名格式：S3-Ch42-*.md、42-*.md、第42章-*.md
   const pattern = new RegExp(`(?:S3-)?Ch?${chapter}[-_\u4e00-\u9fff]`, 'i');
   const match = files.find(f => pattern.test(f));
   if (!match) return null;
@@ -176,14 +215,22 @@ function detectMode(bookRoot, chapter) {
   return files.some(f => pattern.test(f)) ? 'expansion' : 'new_write';
 }
 
-// ===== 获取平均耗时（优先实际数据，无数据则用 fallback）=====
-function getAverageDuration(tracking, mode) {
-  // 优先用实际平均值
-  if (tracking.averages[mode]) {
-    return tracking.averages[mode];
+// ===== 获取某项目类型 + 模式下的平均耗时 =====
+// 优先用该类型的实际平均数据；如果记录不足，回退到全局 fallback
+function getAverageDuration(tracking, projectType, mode) {
+  const typeData = tracking.averagesByType[projectType];
+  if (typeData && typeData[mode]) {
+    return typeData[mode];
   }
-  // 无数据时用 fallback
-  return tracking.averages.fallback[mode] || 150;
+  // 无数据或记录不足时用 fallback
+  return tracking.fallback[mode] || 150;
+}
+
+// ===== 统计某类型的记录条数 =====
+function countRecordsByType(tracking, projectType, mode) {
+  return tracking.records.filter(
+    r => r.projectType === projectType && r.mode === mode
+  ).length;
 }
 
 // ===== 主逻辑 =====
@@ -196,6 +243,7 @@ function main() {
     if (!fs.existsSync(timingDir)) {
       fs.mkdirSync(timingDir, { recursive: true });
     }
+    // 用 date +%s 的秒级时间戳，精确且跨会话可靠
     const now = Math.floor(Date.now() / 1000);
     fs.writeFileSync(getStartFilePath(bookRoot, chapter), String(now), 'utf-8');
     const mode = detectMode(bookRoot, chapter);
@@ -209,32 +257,33 @@ function main() {
       process.exit(1);
     }
 
-    // 计算耗时
+    // 计算耗时（秒）
     const startTime = parseInt(fs.readFileSync(startFile, 'utf-8').trim(), 10);
     const endTime = Math.floor(Date.now() / 1000);
     const duration = endTime - startTime;
 
-    // 获取字数信息
+    // 获取项目类型和字数信息
+    const projectType = readProjectType(bookRoot);
     const currentChars = getChapterCharCount(bookRoot, chapter);
     const mode = detectMode(bookRoot, chapter);
 
-    // 如果是扩写模式，尝试读取之前的字数（从 tracking 记录中查找）
+    // 读取已有的 tracking 数据
     const tracking = loadTracking(bookRoot);
     const prevRecord = tracking.records.find(r => r.chapter === chapter);
     const oldChars = prevRecord ? prevRecord.newChars : null;
 
-    // 创建新记录
+    // 创建记录
     const record = {
       chapter,
       mode,
+      projectType,
       duration,
       timestamp: new Date().toISOString()
     };
     if (currentChars !== null) record.newChars = currentChars;
     if (oldChars !== null) record.oldChars = oldChars;
 
-    // 追加入总记录
-    // 如果已有同章节记录则替换（防止重复计时）
+    // 替换或追加记录
     const existingIdx = tracking.records.findIndex(r => r.chapter === chapter);
     if (existingIdx >= 0) {
       tracking.records[existingIdx] = record;
@@ -242,51 +291,66 @@ function main() {
       tracking.records.push(record);
     }
 
-    // 重算平均值
+    // 重算按类型的平均值
     recalcAverages(tracking);
-
-    // 保存
     saveTracking(bookRoot, tracking);
 
     // 清理开始标记文件
     fs.unlinkSync(startFile);
 
     // 输出摘要
-    const avgLabel = mode === 'expansion' ? '扩写平均' : '新写平均';
-    const avgVal = getAverageDuration(tracking, mode);
+    const avgVal = getAverageDuration(tracking, projectType, mode);
+    const typeRecordCount = countRecordsByType(tracking, projectType, mode);
     const minutes = (duration / 60).toFixed(1);
-    console.log(`✅ 第${chapter}章完成 | 耗时: ${duration}秒 (${minutes}分钟) | ${avgLabel}: ${avgVal}秒`);
-    console.log(`📊 已有 ${tracking.records.length} 条记录`);
+    const typeLabel = mode === 'expansion' ? '扩写平均' : '新写平均';
+    console.log(`✅ 第${chapter}章完成 | 耗时: ${duration}秒 (${minutes}分钟)`);
+    console.log(`📊 项目类型: ${projectType} | ${typeLabel}: ${avgVal}秒 (${typeRecordCount}条记录)`);
 
   } else if (action === 'show') {
     // ===== SHOW：展示当前预估数据 =====
     const tracking = loadTracking(bookRoot);
+    const projectType = readProjectType(bookRoot);
+
+    // 无记录时直接显示回退值
     if (tracking.records.length === 0) {
       console.log('📊 暂无耗时记录，将使用回退值预估');
-      console.log(`   扩写: ${tracking.averages.fallback.expansion}秒/章`);
-      console.log(`   新写: ${tracking.averages.fallback.new_write}秒/章`);
+      console.log(`   ${projectType} 扩写: ${tracking.fallback.expansion}秒/章`);
+      console.log(`   ${projectType} 新写: ${tracking.fallback.new_write}秒/章`);
       process.exit(0);
     }
 
-    console.log('📊 耗时统计：');
-    for (const mode of ['expansion', 'new_write']) {
-      const actual = tracking.averages[mode];
-      const fallback = tracking.averages.fallback[mode];
-      const label = mode === 'expansion' ? '扩写' : '新写';
-      if (actual) {
-        console.log(`  ✅ ${label}平均: ${actual}秒 (回退值: ${fallback}秒)`);
-      } else {
-        console.log(`  ⏳ ${label}: 记录不足3条，暂用回退值 ${fallback}秒`);
+    // 提取所有出现的项目类型
+    const types = [...new Set(tracking.records.map(r => r.projectType || 'unknown'))];
+    console.log(`📊 耗时统计（${projectType}）:`);
+
+    for (const type of types) {
+      const typeData = tracking.averagesByType[type];
+      console.log(`\n  📂 ${type}:`);
+      for (const mode of ['expansion', 'new_write']) {
+        const count = countRecordsByType(tracking, type, mode);
+        const label = mode === 'expansion' ? '扩写' : '新写';
+        const actual = typeData ? typeData[mode] : null;
+        const fallback = tracking.fallback[mode];
+
+        if (actual) {
+          console.log(`    ✅ ${label}: ${actual}秒/章 (基于${count}条记录)`);
+        } else if (count > 0) {
+          console.log(`    ⏳ ${label}: ${count}条记录，不足3条，暂用回退值 ${fallback}秒`);
+        } else {
+          console.log(`    ⏳ ${label}: 无记录，暂用回退值 ${fallback}秒`);
+        }
       }
     }
-    console.log(`  总记录数: ${tracking.records.length}`);
-    // 显示最近的5条记录
+
+    console.log(`\n  总记录数: ${tracking.records.length}`);
+    // 显示最近3条记录
     console.log('  最近记录:');
-    const recent = tracking.records.slice(-5).reverse();
+    const recent = tracking.records.slice(-3).reverse();
     for (const r of recent) {
       const mins = (r.duration / 60).toFixed(1);
       const label = r.mode === 'expansion' ? '扩写' : '新写';
-      console.log(`    第${r.chapter}章 ${label} ${r.duration}秒 (${mins}分钟)`);
+      const type = r.projectType || '未知类型';
+      console.log(`    第${r.chapter}章 ${label} [${type}] ${r.duration}秒 (${mins}分钟)`);
     }
   }
 }
