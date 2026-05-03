@@ -32,6 +32,14 @@
 - `repair-expansion-plan-skeleton.mjs`：单章目标上限 20000 → 200000
 - `workflow-s3-core.md`：Auto-Run 分批粒度 20 章 → 2 章
 - 修复 `project-config.json` 的 `targetWordCount` 未回写导致档位判断失效
+- **修复时间估算偏差 5.3 倍问题**
+  - `ux-progress-enhanced.mjs`：`avgTimePerChapter` 从 2 分钟改为 0.5 分钟
+  - `estimateTime`：章节/全书估算从 2/1.5 分钟/千字改为 0.5 分钟/千字
+  - SKILL.md：公式从 `字数/1000×2` 改为 `字数/1000×0.5`
+  - 实测 4 万字约 15 分钟，新公式消除 5 倍估算偏差
+- **修复步骤爆炸导致会话卡死**
+  - SKILL.md 新增单轮工具调用限制规则（≤2 个工具/轮）
+  - 强制分批执行，禁止一次性读取全部章节
 
 ### 🔄 修改
 

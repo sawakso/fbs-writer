@@ -58,13 +58,13 @@ export function estimateTime(type, params = {}) {
     // 质量审计：每千字 0.5 分钟
     'quality-audit': (p) => (p.wordCount || 1000) / 1000 * 0.5,
 
-    // 章节写作：每千字 2 分钟（AI 生成）
-    'write-chapter': (p) => (p.wordCount || 5000) / 1000 * 2,
+    // 章节写作：每千字 0.5 分钟（AI 生成，约30秒/千字）
+    'write-chapter': (p) => (p.wordCount || 5000) / 1000 * 0.5,
 
-    // 全书写作：根据章节数和字数
+    // 全书写作：根据章节数和字数（实测：4万字约15分钟）
     'write-book': (p) => {
-      const chapterTime = (p.chapterCount || 10) * 5;  // 每章 5 分钟
-      const wordTime = (p.totalWordCount || 50000) / 1000 * 1.5;  // 每千字 1.5 分钟
+      const chapterTime = (p.chapterCount || 10) * 2;  // 每章 2 分钟（实测约1-2分钟）
+      const wordTime = (p.totalWordCount || 50000) / 1000 * 0.5;  // 每千字 0.5 分钟
       return chapterTime + wordTime;
     },
 
@@ -104,7 +104,7 @@ export function estimateBookWritingTime(params = {}) {
   const {
     totalChapters = 1,
     completedChapters = 0,
-    avgTimePerChapter = 2,  // 首次按 2 分钟/章估算
+    avgTimePerChapter = 0.5,  // 首次按 0.5 分钟/章估算（约30秒，实际情况约1-2分钟/章）
     parts = [],
   } = params;
 
