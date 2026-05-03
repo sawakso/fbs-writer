@@ -595,14 +595,44 @@ node scripts/lib/openclaw-host-bridge.mjs --export-caps
 
 ### 导出能力
 
+⚠️ **强制规则：必须使用预设脚本，禁止自己写导出脚本**
+
+**错误做法（禁止）**：
+```
+❌ 自己写合并脚本
+❌ 自己写导出脚本
+❌ 自己安装依赖包然后写代码
+```
+
+**正确做法（必须）**：
+```
+✅ 直接调用：node scripts/export-to-docx.mjs --book-root <书稿根目录>
+✅ 直接调用：node scripts/export-to-pdf.mjs --book-root <书稿根目录>
+✅ 直接调用：node scripts/merge-chapters.mjs --book-root <书稿根目录>
+```
+
 **支持格式：**
 
 | 格式 | 命令 | 依赖 |
 |------|------|------|
 | Markdown | 直接使用 | 无 |
 | HTML | `renderMarkdownPreview()` | `markdown-it` |
-| DOCX | `node scripts/export-to-docx.mjs <input.md> [output.docx]` | `html-to-docx` 或 `docx` |
-| PDF | `node scripts/export-to-pdf.mjs <input.md> [output.pdf]` | `puppeteer` |
+| DOCX | `node scripts/export-to-docx.mjs <合并文件.md> <输出.docx>` | `docx` |
+| PDF | `node scripts/export-to-pdf.mjs <合并文件.md> <输出.pdf>` | `puppeteer` |
+
+**典型工作流：**
+```bash
+# 1. 先合并章节
+node scripts/merge-chapters.mjs --book-root <书稿根目录>
+
+# 2. 导出 DOCX（使用合并后的文件）
+node scripts/export-to-docx.mjs output/merged-book.md 书籍名.docx --title "书名" --author "作者"
+
+# 3. 交付导出
+node scripts/deliver-export.mjs 书籍名.docx
+```
+
+**⚠️ 注意**：导出前必须先合并章节，禁止直接导出单章文件。
 
 **安装可选依赖：**
 ```bash
