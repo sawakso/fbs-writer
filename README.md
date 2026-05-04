@@ -2,7 +2,7 @@
 
 > **定位**：高质量长文档手稿工具链 —— 专业级手稿（非终稿），人在循环中引领、把关、担责
 
-[![Version](https://img.shields.io/badge/version-2.1.2-blue.svg)](https://github.com/sawakso/fbs-bookwriter-lrz)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/sawakso/fbs-bookwriter-lrz)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-WorkBuddy%20%7C%20OpenClaw%20%7C%20CodeBuddy-blue.svg)](#多平台支持)
@@ -22,6 +22,11 @@
 - 📦 **默认 DOCX 输出**：可直接编辑的手稿格式（支持 MD / HTML / PDF）
 - 🤝 **多 Agent 协作**：支持团队协作写作
 - 🔄 **会话恢复**：随时中断，随时继续
+- 🆕 **新用户引导**：首次使用自动激活 SOP，问目录→初始化→三步引导
+- 📁 **跨会话项目持久化**：全局注册表记录所有书稿，新会话直接列出已有项目
+- 🎭 **网文平台适配**：内置番茄小说/起点中文网/晋江文学城三平台交付规范
+- ✏️ **降重改写预设**：六大策略（句式变换→同义词→语序→段落重组→修辞→数据微调）
+- 🎯 **预设选择**：写书/写小说/定大纲时自动弹出平台选择卡片
 
 ---
 
@@ -92,7 +97,7 @@ FBS-BookWriter-LRZ 采用六阶段写作流程：
 
 | 场景 | 说明 |
 |------|------|
-| **网络小说** | 长篇连载，支持续写推进、情节修改 |
+| **网络小说** | 长篇连载，支持续写推进、情节修改，适配番茄小说/起点中文网/晋江文学城 |
 | **技术文档** | API 文档、用户手册、技术白皮书 |
 | **学术写作** | 论文、文献综述、开题报告 |
 | **商业文档** | 行业分析报告、商业计划书 |
@@ -216,13 +221,19 @@ fbs-bookwriter-lrz/
 └──────────────┴──────────────┴───────────────────────────┘
 ```
 
-### 📚 场景包 (`scene-packs/`)
+### 📚 场景包 (`references/scene-packs/`)
 
 | 场景 | 配置 | 说明 |
 |------|------|------|
-| `official-schema.json` | 官方标准场景 | 通用书籍、白皮书 |
-| `enterprise.json` | 企业场景 | 商业文档、报告 |
-| `credits-ledger.json` | 积分账本 | 追踪消耗资源 |
+| `general` | 通用写作规范 | 书籍、手册、通用长文档 |
+| `webnovel` | 网文平台规范 | 番茄小说 / 起点中文网 / 晋江文学城 |
+| `genealogy` | 家谱/家史 | 家族溯源、世系图 |
+| `consultant` | 顾问/咨询报告 | 商业咨询文档 |
+| `ghostwriter` | 代撰/影子写作 | 代写场景 |
+| `training` | 培训教材 | 课程讲义、培训手册 |
+| `personal-book` | 个人传记 | 自传、回忆录 |
+| `whitepaper` | 白皮书 | 行业报告、研究白皮书 |
+| `report` | 调查报告 | 深度报道、调研报告 |
 
 ---
 
@@ -322,6 +333,26 @@ XL 档：分卷并行 + 分层抽样
 - **人在循环中把关**：生成手稿，非终稿，保留人工审核环节
 - **去 AI 味内置**：默认开启去 AI 味处理（可关闭）
 - **跨会话状态持久化**：随时中断，随时继续
+
+### ✏️ 改写预设
+
+| 预设 | 命令 | 说明 |
+|------|------|------|
+| **降重改写** | 说「降重改写」或「降重」 | 六大策略：句式变换→同义词替换→语序调整→段落重组→修辞替换→数据微调 |
+| **去AI味** | 说「去AI味」 | 40+种AI模式检测，逐章替换 |
+| **自有升级** | `rewrite-plan --mode self-upgrade` | 自有旧书内容升级 |
+| **海外本地化** | `rewrite-plan --mode global-localization` | 面向海外读者的内容本地化 |
+| **爆款改写** | `rewrite-plan --mode bestseller-reframe` | 按爆款结构重构内容 |
+
+### 🎯 预设选择流程
+
+写书/写小说/定大纲时自动弹出预设选择：
+
+```
+写书 → 意图菜单 → 预设选择卡片 → 写入 .fbs/active-preset.json → 按预设执行
+写小说 → 预设选择卡片（通用小说/番茄/起点/晋江）→ 按平台规范执行
+定大纲 → 有书稿则问「为哪本定大纲？」→ 无书稿则走意图菜单+预设选择
+```
 
 ---
 
