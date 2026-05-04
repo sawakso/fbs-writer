@@ -37,6 +37,7 @@ function normalizeMode(mode) {
   if (raw === 'self-upgrade' || raw === 'self' || raw === '自有升级') return 'self-upgrade';
   if (raw === 'global-localization' || raw === 'global' || raw === '海外落地') return 'global-localization';
   if (raw === 'bestseller-reframe' || raw === 'bestseller' || raw === '爆款改写') return 'bestseller-reframe';
+  if (raw === 'anti-plagiarism' || raw === 'dedup' || raw === '降重改写' || raw === '降重') return 'anti-plagiarism';
   return 'self-upgrade';
 }
 
@@ -46,12 +47,64 @@ function modeLabel(mode) {
       return '海外内容本地化';
     case 'bestseller-reframe':
       return '爆款结构重构';
+    case 'anti-plagiarism':
+      return '降重改写';
     default:
       return '自有旧书升级';
   }
 }
 
 function buildTemplate({ mode, sourceTitle, targetReader }) {
+  if (mode === 'anti-plagiarism') {
+    return `# 降重改写计划（v1.0）
+
+## 改写模式
+- 模式ID：\`anti-plagiarism\`
+- 模式说明：降重改写
+- 来源作品：${sourceTitle}
+- 目标读者：${targetReader}
+
+## 来源边界与合规
+- [ ] 已确认需要降重的章节范围
+- [ ] 已确认改写边界（允许调整句式、同义词替换、语序调整）
+- [ ] 已确认需保留的核心论点与数据
+
+## 降重改写策略
+### 句式变换（优先级最高）
+- 主动句 ↔ 被动句互换
+- 长句拆短句（超 40 字拆为 2-3 句）
+- 短句合并（连续 ≤ 5 字短句合并）
+- 因果句式重构："因为...所以..." → "...源于..."、"...关键在..."
+
+### 同义词替换
+- 高频动词/形容词替换（单章节同词复用率 > 3 次的必须替换）
+- 专业术语首现保留全称，后续可交替使用全称/缩写/简称
+- 避免生僻字替换（保持可读性）
+
+### 语序调整
+- 时间状语/地点状语前移或后置
+- 定语从句拆分为独立句
+- 引用/举例的插入位置调整
+
+### 段落重组
+- 相邻段落的观点/论据合并或对调
+- 长段落（> 8 句）切分为 2-3 个短段落
+- 相邻章节的过渡句重写
+
+## 保留项
+- 核心论点和数据（禁止改变含义）
+- 引文和标注的原文（保留引号内原内容）
+- 章节结构和逻辑顺序（不改变论述链）
+
+## 执行节奏
+- 每轮最多修改 2 章，串行推进
+- 每章改完后自查：是否为原文同义复述（如 → 需再次调整）
+- 全部完成后对比原文，检查是否出现含义偏差
+- 如为稿件投递场景，按目标平台查重系统预期的通过率做最后微调
+`;
+  }
+
+  // 默认：拆书式改写模板
   return `# 拆书式改写计划（v2.1.1）
 
 ## 改写模式

@@ -2,8 +2,8 @@
 name: fbs-bookwriter-lrz
 version: 2.1.2
 plugin-id: fbs-bookwriter-lrz-v212
-description: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材、续写、继续写、接着写、补写、扩写"
-description_zh: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材、续写、继续写、接着写、补写、扩写"
+description: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写网络小说、写网文、番茄小说格式、起点中文网、晋江文学城、网文平台、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、降重改写、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材、续写、继续写、接着写、补写、扩写"
+description_zh: "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写网络小说、写网文、番茄小说格式、起点中文网、晋江文学城、网文平台、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、降重改写、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材、续写、继续写、接着写、补写、扩写"
 description_en: "Dual-channel long-form writing workflow for books, manuals, whitepapers, guides and reports with layered QC, 7-lock anti-drift anchors, and offline fallback."
 allowed-tools:
   - bash
@@ -11,7 +11,7 @@ allowed-tools:
   - filesystem.write
   - web_search
 user-invocable: true
-scene-packs: [general, genealogy, consultant, ghostwriter, training, personal-book, whitepaper, report]
+scene-packs: [general, genealogy, consultant, ghostwriter, training, personal-book, whitepaper, report, webnovel]
 ui-actions: true
 ---
 
@@ -174,6 +174,91 @@ node scripts/xxx.mjs --book-root <路径>
 
 ---
 
+### 新用户激活 SOP（P0 强制，首次进入必走）
+
+#### 触发条件
+
+首次触发写作（无 `.fbs/`、无 `fbs-user-profile/`、无 session-resume.json），自动进入本流程。
+判断标准：检查以下文件是否存在，全部不存在则为新用户：
+- `~/.openclaw/fbs-user-profile/user-profile.json`
+- 任何书稿目录下的 `.fbs/session-resume.json`
+
+#### 分步 SOP
+
+##### Step 1 — 欢迎与能力介绍（一句话）
+
+```
+📖 福帮手写作工具就绪
+```
+
+不展开说明，直接进入 Step 2。
+
+##### Step 2 — 首次使用引导（必发，不含糊）
+
+**直接向用户说明：**
+
+```
+第一次使用，我们先确认几个基础信息，就能开始写书了。
+
+📁 书稿放在哪个目录？
+（如：./新书、E:/books/我的书、/root/books/项目名）
+```
+
+**等待用户输入目录路径。AI 禁止自作主张选目录。**
+
+##### Step 3 — 目录确认与初始化
+
+用户提供目录后：
+
+```bash
+# 创建目录（如不存在）
+mkdir -p "<用户提供的目录>" > /dev/null 2>&1
+
+# 项目初始化（静默执行）
+node scripts/init-fbs-multiagent-artifacts.mjs --book-root "<路径>" > /dev/null 2>&1
+```
+
+回复用户：
+
+```
+✅ 书稿目录已就绪
+
+接下来做什么？
+1. 告诉我你想写什么书（我会帮你规划）
+2. 你有素材给我，我帮你整理
+3. 我只是先看看
+```
+
+##### Step 4 — 激活下一阶段
+
+用户选择后，按意图进入对应流程：
+
+| 用户选择 | 下一阶段 |
+|---------|---------|
+| 1. 告诉我想写什么 | → S0 情报收集（素材引导） |
+| 2. 我有素材 | → 直接收素材，走 S0 整理 |
+| 3. 先看看 | → 结束，等待下次触发 |
+
+AI 跳转到对应的标准流程阶段。
+
+#### 新用户 SOP 禁止行为（P0）
+
+```
+❌ 不问目录直接创建文件（违反工作目录询问规则）
+❌ 一次性发送大量信息（功能列表、操作手册等）——新用户会不知所措
+❌ 跳过 Step 2 直接问「想写什么书」——先确认目录
+❌ 在 Step 2 问完目录后不等回复就开始写文件
+❌ 展示脚本输出、文件路径、JSON 等内部细节
+```
+
+#### 新用户 SOP 适配说明
+
+- **本 SOP 适用于所有场景包（general/genealogy/consultant/ghostwriter/training/personal-book/whitepaper/report/webnovel）**，不同场景包在 Step 4 的引导措辞可微调
+- 已存在书稿的用户（有 `.fbs/`）不触发本流程，走「恢复优先」
+- **注意**：已存在项目但未配置用户画像 `fbs-user-profile/` 的用户，不是新用户，不走本流程。下次使用或首次导出时再引导配置
+
+---
+
 ### 第一步：意图菜单（强制，new）
 
 **触发写书类操作时，先发意图选择卡片，用户点选后再进入对应流程。**
@@ -239,7 +324,42 @@ node scripts/intake-router.mjs --book-root <bookRoot> --intent <mappedIntent> --
 - 脚本会自动检测宿主能力、降级到 `node-cli` 模式（在 OpenClaw 下属正常行为）
 - OpenClaw 下建议将 JSON 结果写入 `.fbs/intake-router.last.json` 便于调试
 
-### 第三步：恢复优先（按此顺序）
+### 第三步：恢复优先（跨会话，按此顺序）
+
+#### 0. 全局注册表优先查询（P1 强制，跨会话恢复前提）
+
+**新会话首次触发时，先查全局注册表，再走文件级恢复。**
+
+```bash
+# 读取全局注册表，静默写入结果文件
+node scripts/read-project-registry.mjs --json > /dev/null 2>&1
+```
+
+读取 `~/.workbuddy/fbs-book-projects.json` 的 `entries` 字段。
+
+**分支逻辑：**
+
+```
+1. 有已注册项目（entries.length > 0）→ 列出项目让用户选择
+   展示格式：
+     找到 {N} 个书稿项目：
+      1. 《渡》— /root/books/渡/ — S3 · 60/60 章 ✅
+      2. 《Python入门》— /root/books/python/ — S2 · 大纲就绪
+     继续写哪一本？
+
+2. 无已注册项目 → 进入文件级恢复（下方 1/2/3 顺序）
+```
+
+**用户选择后：**
+- 记录所选 `bookRoot` 为当前书稿路径
+- 然后进入文件级恢复
+
+**禁止行为：**
+- ❌ 全局注册表有项目但跳过，直接问目录
+- ❌ 输出 JSON 原文或进程信息
+- ❌ 自动选一个项目不询问用户
+
+#### 文件级恢复（1/2/3）
 
 ```
 1. IF exists(.fbs/session-resume.json)  → 读取恢复卡 → 恢复会话
@@ -247,33 +367,66 @@ node scripts/intake-router.mjs --book-root <bookRoot> --intent <mappedIntent> --
 3. ELSE                                     → 进入 S0 初始化
 ```
 
-**注意**：OpenClaw 下不提供 WorkBuddy 宿主记忆 API，完全依赖 `.fbs/` 文件系统保存状态。
+**注意**：OpenClaw 下不提供 WorkBuddy 宿主记忆 API，完全依赖 `.fbs/` 文件系统 + 全局注册表保存状态。
 
 #### 📋 项目扫描规则（P0 强制，防漏扫）
 
 **当用户问「有什么项目」「检查 X 目录」或需要列出现有书稿时，必须：**
 
-1. **走 intake-router 扫描，禁止手动 `filesystem.read` 列目录**
+1. **优先走全局注册表（替代 intake-router 扫描）**
+   ```bash
+   node scripts/read-project-registry.mjs --json > /dev/null 2>&1
+   ```
+   读取 `~/.workbuddy/fbs-book-projects.json` 的 `entries` 字段。
+
+2. 如果注册表为空或用户指定了特定目录，再走 intake-router 扫描：
    ```bash
    node scripts/intake-router.mjs --book-root <目录路径> --intent auto --json --enforce-required > $null 2>&1
    ```
-   然后从 `.fbs/intake-router.last.json` 的 `candidates` 字段读取所有项目列表。
+   然后从 `.fbs/intake-router.last.json` 的 `candidates` 字段读取。
 
-2. **如果 intake-router 返回 0 个项目，才退回到手动确认目录结构**
+3. **如果 intake-router 返回 0 个项目，才退回到手动确认目录结构**
    - 用 `filesystem.read` 列出指定目录下的**所有子目录**（包括深层嵌套的）
    - 不要只看顶层，有些项目可能嵌套在 `D:/book/新书稿-20260503-105337/` 这样的子目录中
    - 对每个子目录检查 `has .fbs/` 标记
 
-3. **用户说「再看看」「没了吗」时，必须重扫**
+4. **用户说「再看看」「没了吗」时，必须重扫**
    - 不要坚持第一次的结果
    - 直接问「要扩大扫描范围吗？比如深入到子目录？」
 
-4. **列出项目时按自然语言描述，禁止弹 JSON**
+5. **列出项目时按自然语言描述，禁止弹 JSON**
    - ❌ "这里有 3 个 candidate，见 JSON"
    - ✅ "D:\book 下找到 3 个项目：
         1. 南极主题书稿（5 章）
         2. 新书稿-20260503-105337（白皮书，12 章规划，1 章已完成）
         3. ..."
+
+#### 🔄 跨会话自动保存时机（P1 强制）
+
+自动在以下时机写入全局注册表（静默执行，不通知用户）：
+
+| 时机 | 触发方式 | 说明 |
+|------|---------|------|
+| 会话退出 | `session-exit.mjs`（已有） | 退出时自动注册，沿用现有机制 |
+| 写完每 5 章 | 完成后检查脚本后补充注册 | 大纲更新时刷新进度 |
+| 大纲生成完成 | `update-project-scale.mjs` 后补充注册 | 大纲更新时刷新进度 |
+
+**写入命令（AI 在以上时机自动执行，不需要用户确认）：**
+
+```bash
+# 读当前状态写入全局注册表
+node scripts/read-project-registry.mjs --json > /dev/null 2>&1
+node -e "
+const { registerBookProject } = require('./scripts/lib/fbs-book-projects-registry.mjs');
+registerBookProject({ bookRoot: '<bookRoot>', bookTitle: '<书名>', currentStage: '<当前阶段>' });
+" > /dev/null 2>&1
+```
+
+**写入时机汇总：**
+- ✅ 退出时（已有）
+- ✅ 完成第 5、10、15…章时
+- ✅ S1 大纲生成完成时
+- ❌ 每次写完单章不写（防滥用）
 
 ### 第三步：S0 初始化（无项目时）
 
@@ -319,6 +472,17 @@ node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>
 - `chapters/` — 书稿章节目录
 - `deliverables/` — 交付物目录
 
+**项目初始化后立即注册到全局注册表（P1 强制，静默执行）：**
+
+```bash
+node -e "
+const { registerBookProject } = require('./scripts/lib/fbs-book-projects-registry.mjs');
+registerBookProject({ bookRoot: '<bookRoot>', currentStage: 'S0' });
+" > /dev/null 2>&1
+```
+
+> 目的：确保新项目出现在全局注册表中，下次会话可直接恢复。
+
 ---
 
 ## 意图 → 脚本 速查表（MVP 精简版）
@@ -326,14 +490,19 @@ node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>
 | 用户说了什么 | 立即执行 |
 |------------|---------|
 | 首次进入 / 新建项目 | `node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>&1` |
-| 继续写 / 接着写 | 读 `.fbs/session-resume.json` → 从上次位置继续 |
+| 继续写 / 接着写 | 先读全局注册表（`read-project-registry.mjs`）→ 用户选项目 → 读 `.fbs/session-resume.json` 恢复 |
 | 质量自检 / 去 AI 味 | `node scripts/quality-auditor-lite.mjs --book-root <bookRoot> > $null 2>&1` |
-| 退出 / 停止 | `node scripts/session-exit.mjs --book-root <bookRoot> --json > $null 2>&1` |
+| 退出 / 停止 | `node scripts/session-exit.mjs --book-root <bookRoot> --json > $null 2>&1`（自动注册到全局表） |
 | 环境预检 | `node scripts/env-preflight.mjs --json > $null 2>&1` |
 | S0 素材达标检测 | `node scripts/s0-exit-gate.mjs --book-root <bookRoot> --json > $null 2>&1` |
-| 大纲生成完成（S1 后）| `node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1` |
+| 大纲生成完成（S1 后）| `node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1`（完成后注册到全局表） |
 | 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot> --output 全稿.md > $null 2>&1` |
 | 清理过程标注 | `node scripts/strip-manuscript-annotations.mjs --input 全稿.md --output 交付稿.md --toc > $null 2>&1` |
+| 列出所有项目 | `node scripts/read-project-registry.mjs --json > /dev/null 2>&1` |
+| 搜索项目 | `node scripts/read-project-registry.mjs --search <关键词> --json > /dev/null 2>&1` |
+| 查看最近项目 | `node scripts/read-project-registry.mjs --latest --json > /dev/null 2>&1` |
+| 降重改写 / 降重 | 按 SKILL ⚙ 降重改写预设流程执行：句式变换 → 同义词 → 语序 → 段落重组 → 自查 |
+| 网文创作 / 番茄/起点/晋江 | 激活 webnovel 场景包（自动检测平台），按场景包规范执行 |
 
 ---
 
@@ -1173,15 +1342,126 @@ node scripts/lib/openclaw-host-bridge.mjs --export-caps
 
 ---
 
+## 降重改写预设（P1 场景模块）
+
+### 触发方式
+
+用户说 **降重改写** / **降重** / **换一种说法** / **查重** 时进入此模式。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| 稿件投递 | 已有初稿需降低与原文/网上内容的相似度 |
+| 学术改编 | 将原创内容用不同句式重述（非学术不端，而是合理改写） |
+| 平台转投 | 同一内容投递不同平台需避免文本雷同 |
+| 多版本发布 | 同一主题产生多个版本供不同渠道使用 |
+
+### 执行流程
+
+```
+1. 用户说「降重改写」
+   ↓
+2. 确认用户指定的章节/文件范围
+   ↓
+3. AI 按降重改写策略逐章处理：
+   a. 句式变换（主动↔被动、长短句互换、因果重组）
+   b. 同义词替换（高频词首轮替换，第二轮复查遗漏）
+   c. 语序调整（状语位置、定语从句拆分、引用插入位置）
+   d. 段落重组（相邻合并/对调、长段切短）
+   ↓
+4. 每改完 1 章自查：是否有同义复述（原文换皮）→ 需进一步调整
+   ↓
+5. 全部完成后对比原文，逐章确认含义无偏差
+```
+
+### 降重改写六大策略（P1 强制遵守）
+
+#### 1. 句式变换（优先级最高）
+
+| 原句式 | 变换后 | 示例 |
+|--------|--------|------|
+| 主动句 | 被动句 | 「电商平台降低了准入门槛」→「准入门槛被电商平台降低了」 |
+| 长句 | 拆短句（超 40 字拆） | 「这款产品通过AI技术实现了……识别和自动处理」→「这款产品使用了AI技术。它能……识别，并能自动处理……」 |
+| 因果式 | 变体 | 「因为技术不成熟，所以方案搁浅」→「方案搁浅的原因是技术不成熟」 |
+| 条件式 | 假设式 | 「如果……就……」→「一旦……必然……」 |
+| 并列式 | 递进式 | 「既……又……」→「不仅……而且……」 |
+
+#### 2. 同义词替换
+
+- 动词/形容词/副词：替换率 ≥ 40%（按词计，非按字符）
+- 同一词在同一章内出现 ≥ 3 次，必须替换为同义表达
+- 专业术语：首次使用全称，之后交替使用全称/缩写/描述性代称
+- **禁止**：用生僻字替换常用词（保持可读性）
+
+#### 3. 语序调整
+
+- 时间状语前置 ↔ 后置：「昨天，他去了北京」→「他昨天去了北京」
+- 地点状语位置调整：「在上海的会议上」→「会议上，在上海……」
+- 定语从句拆分为独立句：「这是昨天刚研发出来的功能，可以有效……」→「这个功能是昨天刚研发出来的。它可以有效……」
+- 引用/举例的插入位置前移或后置
+- 条件/让步从句：「虽然……但是……」→「……尽管如此，……」
+
+#### 4. 段落重组
+
+- 相邻段落合并（主题紧密的 2 段合并为 1 段）
+- 长段落（> 6 句）拆分为 2-3 个短段落
+- 相邻章节的第一段和最后一段互换内容组织方式
+- 过渡句重写（避免"正如上文所说…""如前所述…"等模板）
+
+#### 5. 修辞替换
+
+- 比喻/类比/引用：保留原意，更换喻体
+- 排比句：调整排列顺序或增减排比项
+- 设问句：改为陈述句或反问句
+
+#### 6. 数据/案例微调（不改变真实性）
+
+- 数据呈现方式：表格→文字 / 文字→列表 / 百分比→分数
+- 案例描述的叙事顺序调换（时间正序↔倒叙↔插叙）
+- 案例的主角/场景细节微调（不影响真实性的范围）
+
+### 降重改写禁止行为（P0 强制）
+
+```
+❌ 改变核心论点或数据含义
+❌ 直接复制原文后仅替换几个词（"替换式抄袭"）
+❌ 将原文内容完全删除（这是删减，不是改写）
+❌ 使用机器翻译后再译回（产生不通顺的中文）
+❌ 引入不准确的信息替换原数据
+❌ 改写后不检查含义偏差就直接交付
+```
+
+### 降重质量自查（每章改完后必须执行）
+
+```
+1. □ 原文与改写的句子层面相似度 ≤ 60%？
+   判断方式：读改写句，看是否有「原文换皮」的感觉
+2. □ 核心术语/关键数据全部保留且含义未变？
+3. □ 改写后中文通顺无机器味？
+4. □ 未使用生僻/不自然词汇？
+5. □ 逻辑链条未被打断或扭曲？
+
+以上 5 项全部达标 → 该章降重完成 ✅
+≥ 1 项不达标 → 回到策略列表重新调整
+```
+
+### 降重改写 + 去AI味联动规则
+
+降重改写完成后，建议追加「去AI味」处理，覆盖降重过程中可能引入的机器表达。
+顺序：**先降重 → 再去AI味 → 最后交付**
+
+---
+
 ## 触发词（完整版）
 
 **主触发**：写书、出书
 
-**写作类**：写长篇、写手册、写白皮书、写行业指南、写报道、写专题、写调查报道、写长文
+**写作类**：写长篇、写网络小说、写网文、番茄小说、起点中文网、晋江文学城、写手册、写白皮书、写行业指南、写报道、写专题、写调查报道、写长文
 
 **流程类**：定大纲、写章节、整理素材
 
-**质量类**：去AI味、质量自检
+**质量类**：去AI味、降重改写、质量自检
 
 **导出类**：导出
 
