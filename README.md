@@ -77,6 +77,20 @@ npm install
 
 ---
 
+### 🍎 macOS 支持
+
+| 项目 | 说明 |
+|------|------|
+| 平台 | ✅ 完全支持 macOS（Intel / Apple Silicon） |
+| 前置依赖 | Node.js 18+（Homebrew 安装：`brew install node@18`） |
+| 路径格式 | `~/.openclaw/skills/...` — 与 Linux 完全一致，不支持 Windows 反斜杠路径 |
+| 重定向语法 | 使用 `> /dev/null 2>&1`（与 Linux 相同） |
+| OS 自动检测 | 每次会话自动检测平台类型，无需手动设置 |
+
+安装方式同 Linux，只是 home 路径在 `/Users/<用户名>/` 下。
+
+---
+
 ## 📚 使用流程
 
 FBS-BookWriter-LRZ 采用六阶段写作流程：

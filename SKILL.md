@@ -59,6 +59,36 @@ Linux/macOS：
 node scripts/<script>.mjs ... > /dev/null 2>&1
 ```
 
+#### OS 自动检测（P1 强制，会话最开头执行一次）
+
+每次会话开始（首次执行脚本前），静默跑一次 OS 检测，把结果记在会话状态里，之后全会话沿用。
+
+```bash
+# 检测操作系统类型，写入隐蔽文件供后续读取
+node -e "
+const fs = require('fs');
+const os = process.platform;
+const shell = os === 'win32' ? 'powershell' : 'bash';
+fs.writeFileSync('.fbs/.os-detect.json', JSON.stringify({\n  platform: os,\\
+  shell: shell,\\
+  nullRedirect: os === 'win32' ? '$null 2>&1' : '/dev/null 2>&1',\
+  pathSep: os === 'win32' ? '\\\\' : '/',\
+  isWindows: os === 'win32'\
+}));\n" > /dev/null 2>&1
+```
+
+之后全会话用 `.fbs/.os-detect.json` 的 `nullRedirect` 值，不再每次判断。
+
+**速查**：
+
+| 平台 | `nullRedirect` 值 | `pathSep` |
+|------|-------------------|-----------|
+| Windows | `$null 2>&1` | `\\` |
+| Linux | `/dev/null 2>&1` | `/` |
+| macOS | `/dev/null 2>&1` | `/` |
+
+**简单规则**：如果忘记跑检测或无法确定，默认按 Linux/macOS 格式写（`> /dev/null 2>&1`），Windows 用户会看到报错提醒换格式。
+
 **违规则：WebChat 渲染文件卡片 / 用户看到内部台账路径 / JSON 片段泄漏**
 
 ---
@@ -77,7 +107,7 @@ node scripts/<script>.mjs ... > /dev/null 2>&1
 
 | 禁止直接读 | 原因 | 替代方案 |
 |-----------|------|--------|
-| `.fbs/*.json` | 内部台账、路由结果、快照、预设选择 | `node scripts/intake-router.mjs --json --book-root <路径> > $null 2>&1` → 读 `.fbs/intake-router.last.json`，只展示 `userFacingOneLiner` |
+| `.fbs/*.json` | 内部台账、路由结果、快照、预设选择、OS 检测 | `node scripts/intake-router.mjs --json --book-root <路径> > $null 2>&1` → 读 `.fbs/intake-router.last.json`，只展示 `userFacingOneLiner` |
 | `.fbs/*.md` | 章节状态、恢复摘要 | 同上，只展示一句话恢复摘要，不贴原文 |
 | `project-config.json` | 项目规模/档位配置 | 提取档位信息后用自然语言汇报（"这本书约 10 万字，M 档"），不暴露 JSON 结构 |
 | `author-meta.md` | 作者元数据 | 只用其信息，不弹文件 |
