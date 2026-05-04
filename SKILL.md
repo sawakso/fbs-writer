@@ -107,7 +107,7 @@ fs.writeFileSync('.fbs/.os-detect.json', JSON.stringify({\n  platform: os,\\
 
 | 禁止直接读 | 原因 | 替代方案 |
 |-----------|------|--------|
-| `.fbs/*.json` | 内部台账、路由结果、快照、预设选择、OS 检测 | `node scripts/intake-router.mjs --json --book-root <路径> > $null 2>&1` → 读 `.fbs/intake-router.last.json`，只展示 `userFacingOneLiner` |
+| `.fbs/*.json` | 内部台账、路由结果、快照、预设选择、OS 检测、完成审查 | `node scripts/intake-router.mjs --json --book-root <路径> > $null 2>&1` → 读 `.fbs/intake-router.last.json`，只展示 `userFacingOneLiner` |
 | `.fbs/*.md` | 章节状态、恢复摘要 | 同上，只展示一句话恢复摘要，不贴原文 |
 | `project-config.json` | 项目规模/档位配置 | 提取档位信息后用自然语言汇报（"这本书约 10 万字，M 档"），不暴露 JSON 结构 |
 | `author-meta.md` | 作者元数据 | 只用其信息，不弹文件 |
@@ -617,6 +617,7 @@ registerBookProject({ bookRoot: '<bookRoot>', currentStage: 'S0' });
 | 网文创作 / 番茄/起点/晋江 | 激活 webnovel 场景包（自动检测平台），按场景包规范执行 |
 | 定大纲 | 有项目→问「为哪本书定大纲？」；无项目→走意图菜单→预设选择→生成大纲 |
 | 写小说 / 写书 | 现有意图菜单 → 选「写长篇」→ 走预设选择（通用/番茄/起点/晋江） |
+| 写完了 / 全部完成 / 收官 | 自动触发完成审查：字数审计→质量审计→S7检测→汇总报告 |
 
 ---
 
@@ -1043,6 +1044,85 @@ AI：第 1 部分已完成，第 2 部分共 15 章，已完成 4 章。
 ```bash
 node scripts/expansion-word-verify.mjs --book-root <bookRoot>
 ```
+
+### S3→S4 自动完成审查（P2 强制，写完后自动执行）
+
+#### 触发条件
+
+满足以下任一条件时，自动触发完成审查：
+
+| 条件 | 触发 |
+|------|------|
+| 最后 1 章写完 | 检查 `chapter-status.md` 中已完成章数 = 总章数 |
+| 用户说「写完了」/「全部完成」/「收官」 | 直接触发 |
+| S3 入口预检时发现已完成章数 = 总章数 | 说明已全部写完，直接跳到审查流程 |
+| 每 5 章审计时发现总进度 100% | 追加触发完整审查 |
+
+#### 自动审查序列（静默执行，按顺序跑）
+
+```
+第 1 步：字数审计 → 检查所有章节是否达标
+  脚本：node scripts/chapter-wordcount-audit.mjs --book-root <bookRoot> --json
+  结果写入：.fbs/wordcount-audit.json
+
+第 2 步：质量审计 → S/P/C/B 四层质检
+  脚本：node scripts/quality-auditor-lite.mjs --book-root <bookRoot> --json
+  结果写入：.fbs/quality-audit-last.json
+
+第 3 步：S7 AI套路检测（含在 quality-auditor-lite.mjs 中）
+  S7 自动运行，检查 40+ 种 AI 模式
+
+第 4 步：汇总报告
+  从两步结果提取关键信息，用自然语言汇报
+```
+
+#### 汇报格式（全部静默执行后，只输出一行）
+
+```
+✅ 全部写完了。字数审计：N/M 章达标，差额 ±X 字。质量评分：X.X/10。
+需要我做什么？
+1. 查看详细审计报告
+2. 去AI味处理
+3. 导出交付
+```
+
+**禁止展示审计脚本的输出、JSON 片段、文件路径。**
+
+#### 审计结果处理规则
+
+| 审计结果 | 操作 |
+|---------|------|
+| 字数全部达标 + 质量分 ≥ 7.5 | 自动标记入 S4 质检完成，可进入 S5/S6 |
+| 字数未达标 | 列出欠字章节，问用户是否先扩充再继续 |
+| 质量分 < 7.5 或 S7 AI套路 > 3 处 | 标记具体问题章节，建议先去AI味处理 |
+| 两者均不达标 | 先扩充字数 → 再去AI味 → 重新审计
+
+#### S3→S4 自动过渡
+
+如果审计全部通过（字数达标 + 质量 ≥ 7.5 + AI套路 ≤ 3），自动进入 S4 完成状态：
+
+```bash
+# 记录审查通过状态
+node -e "
+const fs = require('fs');
+fs.writeFileSync('.fbs/completion-review.json', JSON.stringify({
+  reviewedAt: new Date().toISOString(),
+  wordcountOk: true,
+  qualityOk: true,
+  autoPassed: true,
+  nextStage: 'S5'
+}));
+" > /dev/null 2>&1
+```
+
+#### 常见误区
+
+- ❌ 写完最后 1 章不触发审查，等用户自己要求
+- ❌ 审计通过后不汇报结果，直接问「接下来写什么」
+- ❌ 汇报时输出 JSON 原文
+- ❌ 字数审计和质量审计分开汇报（两步合并成一句）
+
+---
 
 ### S4：质检
 
