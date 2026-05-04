@@ -49,8 +49,8 @@ function countMaterialItems(materialPath) {
   const text = fs.readFileSync(materialPath, "utf8");
   let count = 0;
   for (const line of text.split(/\r?\n/)) {
-    if (/^\s*[-*]\s+/.test(line)) count += 1;
-    else if (/^\s*\d+[.)、]\s+/.test(line)) count += 1;
+    // Count only actual material entries (MAT-XXX headers), not template field lines
+    if (/^##\s+素材条目\s*·\s*MAT-\d+/.test(line)) count += 1;
   }
   return count;
 }
