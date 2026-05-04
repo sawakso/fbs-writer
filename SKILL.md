@@ -333,6 +333,7 @@ node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>
 | S0 素材达标检测 | `node scripts/s0-exit-gate.mjs --book-root <bookRoot> --json > $null 2>&1` |
 | 大纲生成完成（S1 后）| `node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1` |
 | 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot> --output 全稿.md > $null 2>&1` |
+| 清理过程标注 | `node scripts/strip-manuscript-annotations.mjs --input 全稿.md --output 交付稿.md --toc > $null 2>&1` |
 
 ---
 
@@ -994,15 +995,30 @@ node scripts/lib/openclaw-host-bridge.mjs --export-caps
 # 1. 先合并全稿（必须，禁止直接导出单章）
 node scripts/merge-chapters.mjs --book-root <书稿根目录> --output 全稿.md
 
-# 2. 再导出 DOCX/PDF
-node scripts/export-to-docx.mjs 全稿.md 书籍.docx --title "书名"
-node scripts/export-to-pdf.mjs  全稿.md 书籍.pdf  --title "书名"
+# 2. 清理过程标注（章末标记、跟踪注释）
+node scripts/strip-manuscript-annotations.mjs \
+  --input 全稿.md --output 交付稿.md --toc
 
-# 3. 交付（可选）
+# 3. 再导出 DOCX/PDF（必须用清理后的交付稿）
+node scripts/export-to-docx.mjs 交付稿.md 书籍.docx --title "书名"
+node scripts/export-to-pdf.mjs  交付稿.md 书籍.pdf  --title "书名"
+
+# 4. 交付（可选）
 node scripts/deliver-export.mjs 书籍.docx
 ```
 
+⚠️ **禁止用含过程标注的全稿直接导出**
+
 **⚠️ 注意**：导出前必须先合并章节，禁止直接导出单章文件。`export-to-docx.mjs` 和 `export-to-pdf.mjs` 不接受 `--book-root` 参数，只接受 `<输入文件> <输出文件>` 位置参数。
+
+**⚠️ 导出前必须清理过程标注（P0）**：合并后的全稿包含写作过程的章末标记（`**（第X章完）**`）和内部跟踪注释（`<!-- source: ... -->`），交付前必须使用 `strip-manuscript-annotations.mjs` 清理。
+
+```bash
+node scripts/strip-manuscript-annotations.mjs \
+  --input 全稿.md \
+  --output 交付稿.md \
+  --toc    # 可选：自动生成目录
+```
 
 **安装可选依赖：**
 ```bash
