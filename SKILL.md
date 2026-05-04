@@ -111,6 +111,13 @@ node scripts/xxx.mjs --book-root <路径>
 
 **核心原则**：所有脚本执行时必须重定向输出到 `$null`，不暴露文件路径。
 
+### ⛔ P0 铁律：禁止自写导出/合并脚本
+
+**任何导出格式转换（Markdown→DOCX/PDF/HTML）以及章节合并，必须使用 SKILL 内置脚本（`scripts/export-to-docx.mjs`、`scripts/export-to-pdf.mjs`、`scripts/merge-chapters.mjs`）。
+禁止用 `exec` 跑 python3/sed 做格式转换，禁止自己写转换代码，禁止用 `filesystem.write` 组装 DOCX/PDF 二进制。**
+
+违规处理：直接报错，说明"请使用 SKILL 内置导出脚本"。
+
 
 ### 用户可见内容速查
 
@@ -325,7 +332,7 @@ node scripts/init-fbs-multiagent-artifacts.mjs --book-root <bookRoot> > $null 2>
 | 环境预检 | `node scripts/env-preflight.mjs --json > $null 2>&1` |
 | S0 素材达标检测 | `node scripts/s0-exit-gate.mjs --book-root <bookRoot> --json > $null 2>&1` |
 | 大纲生成完成（S1 后）| `node scripts/update-project-scale.mjs --book-root <bookRoot> > $null 2>&1` |
-| 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot> > $null 2>&1` |
+| 合并全稿 | `node scripts/merge-chapters.mjs --book-root <bookRoot> --output 全稿.md > $null 2>&1` |
 
 ---
 
@@ -944,44 +951,58 @@ node scripts/lib/openclaw-host-bridge.mjs --export-caps
 
 ### 导出能力
 
-⚠️ **强制规则：必须使用预设脚本，禁止自己写导出脚本**
+⛔ **P0 铁律：禁止自己写导出脚本**
 
-**错误做法（禁止）**：
+**永远不要**自己写合并/导出/转换脚本。SKILL 内置了全部导出脚本，**直接调用**。
+
+**错误做法（违反即出错）：**
 ```
-❌ 自己写合并脚本
-❌ 自己写导出脚本
-❌ 自己安装依赖包然后写代码
+❌ 自己写 merge-chapters.mjs 或类似合并脚本
+❌ 自己写 Markdown→DOCX/PDF 的转换代码
+❌ 自己 npm install 然后手写转换逻辑
+❌ 用 exec 运行 python3 或 sed 做格式转换
+❌ 用 filesystem.write 拼 DOCX/PDF 二进制
+❌ 对 export-to-docx.mjs 传 --book-root（它不接受）
 ```
 
-**正确做法（必须）**：
+**正确做法（唯一允许）：**
 ```
-✅ 直接调用：node scripts/export-to-docx.mjs --book-root <书稿根目录>
-✅ 直接调用：node scripts/export-to-pdf.mjs --book-root <书稿根目录>
-✅ 直接调用：node scripts/merge-chapters.mjs --book-root <书稿根目录>
+✅ 导出DOCX：node scripts/export-to-docx.mjs <合并后的.md> <输出.docx> [--title "书名"]
+✅ 导出PDF：  node scripts/export-to-pdf.mjs  <合并后的.md> <输出.pdf>  [--title "书名"]
+✅ 合并全稿：node scripts/merge-chapters.mjs --book-root <书稿根目录> --output <输出.md>
 ```
+
+**各脚本实际接受的参数：**
+
+| 脚本 | 参数类型 | 正确示例 |
+|------|---------|---------|
+| `merge-chapters.mjs` | `--book-root --output [--glob]` | `node scripts/merge-chapters.mjs --book-root /root/books/渡 --output 渡-全稿.md` |
+| `export-to-docx.mjs` | `<input.md> <output.docx>` 位置参数 | `node scripts/export-to-docx.mjs 渡-全稿.md 渡.docx --title "渡" --author "作者"` |
+| `export-to-pdf.mjs` | `<input.md> <output.pdf>` 位置参数 | `node scripts/export-to-pdf.mjs 渡-全稿.md 渡.pdf --title "渡"` |
 
 **支持格式：**
 
 | 格式 | 命令 | 依赖 |
 |------|------|------|
-| Markdown | 直接使用 | 无 |
+| Markdown | `merge-chapters.mjs` 输出自带 | 无 |
 | HTML | `renderMarkdownPreview()` | `markdown-it` |
-| DOCX | `node scripts/export-to-docx.mjs <合并文件.md> <输出.docx>` | `docx` |
-| PDF | `node scripts/export-to-pdf.mjs <合并文件.md> <输出.pdf>` | `puppeteer` |
+| DOCX | `export-to-docx.mjs` | `html-to-docx`（已安装） |
+| PDF | `export-to-pdf.mjs` | `puppeteer`（已安装） |
 
-**典型工作流：**
+**正确工作流：**
 ```bash
-# 1. 先合并章节
-node scripts/merge-chapters.mjs --book-root <书稿根目录>
+# 1. 先合并全稿（必须，禁止直接导出单章）
+node scripts/merge-chapters.mjs --book-root <书稿根目录> --output 全稿.md
 
-# 2. 导出 DOCX（使用合并后的文件）
-node scripts/export-to-docx.mjs output/merged-book.md 书籍名.docx --title "书名" --author "作者"
+# 2. 再导出 DOCX/PDF
+node scripts/export-to-docx.mjs 全稿.md 书籍.docx --title "书名"
+node scripts/export-to-pdf.mjs  全稿.md 书籍.pdf  --title "书名"
 
-# 3. 交付导出
-node scripts/deliver-export.mjs 书籍名.docx
+# 3. 交付（可选）
+node scripts/deliver-export.mjs 书籍.docx
 ```
 
-**⚠️ 注意**：导出前必须先合并章节，禁止直接导出单章文件。
+**⚠️ 注意**：导出前必须先合并章节，禁止直接导出单章文件。`export-to-docx.mjs` 和 `export-to-pdf.mjs` 不接受 `--book-root` 参数，只接受 `<输入文件> <输出文件>` 位置参数。
 
 **安装可选依赖：**
 ```bash

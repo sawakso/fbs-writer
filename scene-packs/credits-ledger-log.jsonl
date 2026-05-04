@@ -1,3 +1,5 @@
 {"ts":"2026-04-30T08:29:30.518Z","event":"add","source":"first_install","amount":100,"balance_after":100}
 {"ts":"2026-04-30T08:29:30.519Z","event":"add","source":"daily_login","amount":5,"balance_after":105}
 {"ts":"2026-05-01T08:48:22.872Z","event":"add","source":"daily_login","amount":5,"balance_after":110}
+{"ts":"2026-05-03T03:39:20.760Z","event":"add","source":"daily_login","amount":5,"balance_after":115}
+{"ts":"2026-05-04T01:31:27.501Z","event":"add","source":"daily_login","amount":5,"balance_after":120}

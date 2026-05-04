@@ -5,6 +5,24 @@
   "wecom_corp_id": "",
   "books": [
     {
+      "bookRoot": "/root/books/渡",
+      "title": "渡",
+      "docUrl": null,
+      "docId": null,
+      "genre": "general",
+      "createdAt": "2026-05-03T03:39:20.759Z",
+      "updatedAt": "2026-05-04T01:32:08.723Z"
+    },
+    {
+      "bookRoot": "/root/books/职场心理健康白皮书",
+      "title": "职场心理健康白皮书",
+      "docUrl": null,
+      "docId": null,
+      "genre": "whitepaper",
+      "createdAt": "2026-05-03T08:59:47.873Z",
+      "updatedAt": "2026-05-03T08:59:47.873Z"
+    },
+    {
       "bookRoot": "C:\\Users\\DELL\\Desktop\\如何去南极",
       "title": "如何去南极",
       "docUrl": null,
